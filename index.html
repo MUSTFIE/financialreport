@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Fergus的收支與資產管理</title>
     <!-- 移除了 Tailwind CSS 的 CDN -->
-    <!-- Firebase SDK (Compat 版本) -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.min.js"></script>
+    <!-- Firebase SDK (Compat 版本) 加上 onerror 備用機制 -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.min.js" onerror="useLocalFallback()"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.min.js" onerror="useLocalFallback()"></script>
     
     <style>
         /* ==================== 基礎重置與變數 ==================== */
@@ -733,7 +733,7 @@
         // ========== 初始化與資料載入 ==========
         function initApp() {
             try {
-                if (typeof firebase === 'undefined') {
+                if (typeof firebase === 'undefined' || !firebase.initializeApp) {
                     throw new Error("Firebase SDK 未能成功載入，可能被網路或廣告攔截器阻擋。");
                 }
 
@@ -742,8 +742,9 @@
                 dataRef = db.ref('budget_data');
                 
                 const timeoutId = setTimeout(() => {
-                    document.getElementById('loading-text').innerText = '雲端連線逾時';
+                    document.getElementById('loading-text').innerText = '雲端連線逾時，切換本機模式';
                     document.getElementById('fallback-btn').classList.remove('hidden');
+                    useLocalFallback();
                 }, 8000);
 
                 loadDataFromFirebase().then(() => {
@@ -763,10 +764,11 @@
         }
 
         function useLocalFallback() {
+            if (isLocalMode) return; // 避免重複執行
             isLocalMode = true;
             loadDataFromLocal();
             finishInit();
-            document.getElementById('loading-text').innerText = '⚠️ 目前為本機離線模式，資料不會雲端同步';
+            document.getElementById('loading-text').innerText = '⚠️ 目前為本機離線模式（已略過雲端同步）';
             document.getElementById('fallback-btn').classList.add('hidden');
             setTimeout(() => {
                 document.getElementById('loading-overlay').classList.add('hidden');
@@ -863,7 +865,8 @@
                 localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
             } else {
                 dataRef.set(payload).catch(err => {
-                    console.warn('雲端同步失敗:', err);
+                    console.warn('雲端同步失敗，改存本機:', err);
+                    isLocalMode = true;
                 });
                 localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
             }
