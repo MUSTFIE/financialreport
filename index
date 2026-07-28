@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fergus的收支與資產管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans pb-8">
+
+    <!-- 載入遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center px-6">
+        <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <div class="text-lg font-bold text-blue-600 mb-1">資料載入中...</div>
+        <div id="loading-text" class="text-sm text-gray-500 text-center">正在從雲端同步你的記帳資料</div>
+        <button id="fallback-btn" onclick="useLocalFallback()" class="mt-6 hidden text-sm text-blue-600 underline">
+            雲端連線失敗，點擊使用本機模式
+        </button>
+    </div>
+
+    <header class="bg-blue-700 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-3 py-3 sm:py-5 flex justify-between items-center flex-wrap gap-2">
+            <h1 class="text-lg sm:text-2xl font-bold">💰 Fergus的收支與資產管理</h1>
+            <span class="text-[10px] sm:text-xs bg-blue-800 px-2 sm:px-3 py-1 rounded-full border border-blue-400">
+                預設匯率：1 HKD = 1.0315 MOP | 1 CNY = 1.11 MOP
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-3 mt-4 sm:mt-6">
+
+        <!-- 分頁列 -->
+        <div class="flex border-b border-gray-300 mb-4 sm:mb-6 bg-white rounded-t-lg overflow-hidden shadow-sm flex-wrap">
+            <button id="tab-monthly-btn" onclick="switchTab('monthly')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-blue-600 text-white transition text-[11px] sm:text-sm">📅 月度記賬</button>
+            <button id="tab-transfer-btn" onclick="switchTab('transfer')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm">💱 資金調撥</button>
+            <button id="tab-yearly-btn" onclick="switchTab('yearly')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm">📊 年度結算</button>
+            <button id="tab-bank-btn" onclick="switchTab('bank')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm">🏦 銀行渠道</button>
+            <button id="tab-mpf-btn" onclick="switchTab('mpf')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm">🛡️ 強積金</button>
+            <button id="tab-assets-btn" onclick="switchTab('assets')" class="flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm">🧮 淨資產</button>
+        </div>
+
+        <!-- ==================== 月度記賬 ==================== -->
+        <div id="tab-monthly" class="space-y-4 sm:space-y-6">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b">
+                    <label class="font-bold text-base sm:text-lg text-slate-700 flex items-center gap-2 flex-wrap">
+                        選擇月份：
+                        <input type="month" id="selected-month" onchange="renderMonthlyView()" class="border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 font-medium text-sm">
+                    </label>
+                    <span class="text-[10px] sm:text-xs text-gray-500">* 金額結算均自動轉換為澳門幣 (MOP) 計算</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-emerald-50 border border-emerald-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-emerald-600 text-xs sm:text-sm font-semibold">本月總收入</div>
+                        <div id="monthly-income" class="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-rose-600 text-xs sm:text-sm font-semibold">本月總支出</div>
+                        <div id="monthly-expense" class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-blue-600 text-xs sm:text-sm font-semibold">本月淨結餘</div>
+                        <div id="monthly-balance" class="text-xl sm:text-2xl font-bold text-blue-700 mt-1">MOP $0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-sm sm:text-md font-bold text-slate-800 mb-3 border-l-4 border-rose-500 pl-2">📊 本月各類別支出統計</h3>
+                <div id="category-stats-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3"></div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base sm:text-lg font-bold mb-3 text-slate-800 border-l-4 border-blue-600 pl-2">新增日常收支紀錄</h2>
+                <form id="record-form" onsubmit="handleAddRecord(event)" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">日期</label>
+                        <input type="date" id="input-date" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">收支類型</label>
+                        <select id="input-type" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 text-sm">
+                            <option value="expense">支出 (-)</option>
+                            <option value="income">收入 (+)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">金額與貨幣</label>
+                        <div class="flex gap-2">
+                            <input type="number" step="0.01" min="0.01" id="input-amount" placeholder="0.00" required class="flex-1 border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 text-sm">
+                            <select id="input-currency" class="border border-gray-300 rounded-lg p-2.5 bg-gray-50 font-semibold focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="MOP">MOP</option>
+                                <option value="HKD">HKD</option>
+                                <option value="CNY">RMB</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">類別</label>
+                        <select id="input-category-select" onchange="toggleCustomCategoryInput()" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 font-medium text-sm">
+                            <option value="飲食">飲食</option>
+                            <option value="購物">購物</option>
+                            <option value="母嬰">母嬰</option>
+                            <option value="電話費">電話費</option>
+                            <option value="上網費">上網費</option>
+                            <option value="電費">電費</option>
+                            <option value="生活費">生活費</option>
+                            <option value="水費">水費</option>
+                            <option value="保險費">保險費</option>
+                            <option value="學生貸款">學生貸款</option>
+                            <option value="其他">其他（自訂）</option>
+                        </select>
+                        <div id="custom-category-container" class="mt-2 hidden">
+                            <input type="text" id="input-custom-category" placeholder="請輸入自訂類別名稱" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 bg-amber-50">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">支付帳戶</label>
+                        <select id="input-payment-channel" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 font-semibold text-blue-900 text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">備註 (可選)</label>
+                        <input type="text" id="input-remark" placeholder="交易細節說明" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                    <div class="md:col-span-2 mt-1">
+                        <button type="submit" id="record-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition text-sm">➕ 新增紀錄</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base sm:text-lg font-bold mb-3 text-slate-800">當月紀錄明細</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[600px]">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600 text-xs sm:text-sm">
+                                <th class="p-2 sm:p-3">日期</th>
+                                <th class="p-2 sm:p-3">類型</th>
+                                <th class="p-2 sm:p-3">金額</th>
+                                <th class="p-2 sm:p-3">折算 MOP</th>
+                                <th class="p-2 sm:p-3">類別</th>
+                                <th class="p-2 sm:p-3">支付帳戶</th>
+                                <th class="p-2 sm:p-3">備註</th>
+                                <th class="p-2 sm:p-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 資金調撥 ==================== -->
+        <div id="tab-transfer" class="space-y-4 sm:space-y-6 hidden">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base sm:text-lg font-bold mb-4 text-slate-800 border-l-4 border-amber-500 pl-2">💱 資金調撥（內部轉帳 / 信用卡還款）</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <!-- 銀行帳戶內部轉帳 -->
+                    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                        <h3 class="font-bold text-slate-700 mb-3 text-sm sm:text-base">🏦 銀行帳戶內部轉帳</h3>
+                        <form onsubmit="handleBankTransfer(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">轉出帳戶</label>
+                                <select id="transfer-from" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-medium"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">轉入帳戶</label>
+                                <select id="transfer-to" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-medium"></select>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">金額</label>
+                                    <input type="number" step="0.01" min="0.01" id="transfer-amount" placeholder="0.00" required class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">幣種</label>
+                                    <select id="transfer-currency" class="border border-gray-300 rounded-lg p-2 text-sm font-bold bg-white">
+                                        <option value="MOP">MOP</option>
+                                        <option value="HKD">HKD</option>
+                                        <option value="CNY">CNY</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">備註 (可選)</label>
+                                <input type="text" id="transfer-remark" placeholder="例如：資金調撥" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            </div>
+                            <button type="submit" id="transfer-submit-btn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-4 rounded-lg transition text-sm">確認轉帳</button>
+                        </form>
+                    </div>
+
+                    <!-- 信用卡找數 -->
+                    <div class="border border-slate-200 rounded-lg p-4 bg-rose-50">
+                        <h3 class="font-bold text-slate-700 mb-3 text-sm sm:text-base">💳 信用卡找數（還款）</h3>
+                        <form onsubmit="handleCreditCardPayment(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">扣款銀行帳戶</label>
+                                <select id="payment-from-bank" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-medium"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">還款信用卡</label>
+                                <select id="payment-to-credit" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-medium"></select>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">還款金額</label>
+                                    <input type="number" step="0.01" min="0.01" id="payment-amount" placeholder="0.00" required class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">幣種</label>
+                                    <select id="payment-currency" class="border border-gray-300 rounded-lg p-2 text-sm font-bold bg-white">
+                                        <option value="MOP">MOP</option>
+                                        <option value="HKD">HKD</option>
+                                        <option value="CNY">CNY</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">備註 (可選)</label>
+                                <input type="text" id="payment-remark" placeholder="例如：月結單還款" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            </div>
+                            <button type="submit" id="payment-submit-btn" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-lg transition text-sm">確認還款</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base sm:text-lg font-bold mb-3 text-slate-800">近期轉帳/還款紀錄</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[500px]">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600 text-xs sm:text-sm">
+                                <th class="p-2 sm:p-3">日期</th>
+                                <th class="p-2 sm:p-3">類型</th>
+                                <th class="p-2 sm:p-3">金額</th>
+                                <th class="p-2 sm:p-3">資金流向</th>
+                                <th class="p-2 sm:p-3">備註</th>
+                                <th class="p-2 sm:p-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transfer-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 年度結算 ==================== -->
+        <div id="tab-yearly" class="space-y-4 sm:space-y-6 hidden">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex items-center gap-4 mb-4 pb-3 border-b">
+                    <label class="font-bold text-base sm:text-lg text-slate-700">選擇年份：</label>
+                    <select id="selected-year" onchange="renderYearlyView()" class="border border-gray-300 rounded-lg px-3 py-1.5 font-bold text-base sm:text-lg text-blue-600 focus:ring-2 focus:ring-blue-500"></select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    <div class="bg-emerald-50 border border-emerald-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-emerald-600 text-xs sm:text-sm font-semibold">整年總收入</div>
+                        <div id="yearly-income" class="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-rose-600 text-xs sm:text-sm font-semibold">整年總支出</div>
+                        <div id="yearly-expense" class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-lg">
+                        <div class="text-blue-600 text-xs sm:text-sm font-semibold">整年淨結餘</div>
+                        <div id="yearly-balance" class="text-xl sm:text-2xl font-bold text-blue-700 mt-1">MOP $0.00</div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[400px]">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600 text-xs sm:text-sm">
+                                <th class="p-2 sm:p-3">月份</th>
+                                <th class="p-2 sm:p-3 text-emerald-600">總收入</th>
+                                <th class="p-2 sm:p-3 text-rose-600">總支出</th>
+                                <th class="p-2 sm:p-3 text-blue-600">淨結餘</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yearly-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 銀行及支付渠道 ==================== -->
+        <div id="tab-bank" class="space-y-4 sm:space-y-6 hidden">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-800">🏦 銀行及支付渠道總覽</h2>
+                        <p class="text-[10px] sm:text-xs text-gray-500 mt-1">含銀行存款及信用卡未結卡數</p>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg text-right w-full sm:w-auto">
+                        <div class="text-[10px] sm:text-xs text-blue-600 font-semibold">流動資產淨額 (銀行 - 卡數)</div>
+                        <div id="total-bank-assets" class="text-lg sm:text-xl font-bold text-blue-800">MOP $0.00</div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[650px]">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600 text-xs sm:text-sm">
+                                <th class="p-2 sm:p-3">帳戶名稱</th>
+                                <th class="p-2 sm:p-3">類型</th>
+                                <th class="p-2 sm:p-3">MOP</th>
+                                <th class="p-2 sm:p-3">HKD</th>
+                                <th class="p-2 sm:p-3">CNY</th>
+                                <th class="p-2 sm:p-3">小計 MOP</th>
+                                <th class="p-2 sm:p-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bank-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="deposit-modal" class="bg-white p-4 sm:p-6 rounded-xl shadow-md border border-blue-300 hidden">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b">
+                    <h3 class="text-base sm:text-lg font-bold text-blue-900" id="deposit-modal-title">💰 為帳戶存入資金</h3>
+                    <button onclick="closeDepositModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">✖</button>
+                </div>
+                <form onsubmit="handleExecuteDeposit(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input type="hidden" id="deposit-channel-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">存入幣種</label>
+                        <select id="deposit-currency" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-bold bg-gray-50">
+                            <option value="MOP">MOP</option>
+                            <option value="HKD">HKD</option>
+                            <option value="CNY">CNY</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">增加金額</label>
+                        <input type="number" step="0.01" min="0.01" id="deposit-amount" placeholder="0.00" required class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">來源/備註</label>
+                        <input type="text" id="deposit-remark" placeholder="例：薪酬入賬" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" id="deposit-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg transition text-sm">確認增加</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="bank-statement-section" class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 hidden">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b">
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800" id="statement-title">📜 渠道交易流水帳</h2>
+                    <button onclick="closeStatement()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded font-bold">✖ 關閉</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[500px] text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600">
+                                <th class="p-2 sm:p-3">日期</th>
+                                <th class="p-2 sm:p-3">類型</th>
+                                <th class="p-2 sm:p-3">交易金額</th>
+                                <th class="p-2 sm:p-3">支付方式</th>
+                                <th class="p-2 sm:p-3">類別</th>
+                                <th class="p-2 sm:p-3">備註</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statement-table-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 強積金 (MPF) ==================== -->
+        <div id="tab-mpf" class="space-y-4 sm:space-y-6 hidden">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-800">🛡️ 強積金 (MPF) 戶口</h2>
+                        <p class="text-[10px] sm:text-xs text-gray-500 mt-1">追蹤每月結餘與漲跌變動</p>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg text-right w-full sm:w-auto">
+                        <div class="text-[10px] sm:text-xs text-emerald-600 font-semibold">強積金總資產</div>
+                        <div id="total-mpf-assets" class="text-lg sm:text-xl font-bold text-emerald-800">MOP $0.00</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 sm:p-4 rounded-lg border border-slate-200 mb-4">
+                    <h3 class="text-xs sm:text-sm font-bold text-slate-700 mb-2">➕ 新增強積金戶口</h3>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="new-mpf-account-name" placeholder="例如：永明強積金" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500">
+                        <select id="new-mpf-account-currency" class="border border-gray-300 rounded-lg p-2 text-sm font-semibold bg-white">
+                            <option value="HKD">HKD</option>
+                            <option value="MOP">MOP</option>
+                        </select>
+                        <button onclick="handleAddMPFAccount()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition">新增戶口</button>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-200 mb-4">
+                    <h3 class="text-xs sm:text-sm font-bold text-blue-900 mb-2">📝 記錄月份結餘</h3>
+                    <form onsubmit="handleSaveMPFRecord(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-3">
+                        <div>
+                            <label class="block text-[10px] sm:text-xs font-semibold text-gray-600 mb-1">選擇戶口</label>
+                            <select id="mpf-record-account" required class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white font-semibold"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] sm:text-xs font-semibold text-gray-600 mb-1">選擇月份</label>
+                            <input type="month" id="mpf-record-month" required class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] sm:text-xs font-semibold text-gray-600 mb-1">結餘金額</label>
+                            <input type="number" step="0.01" id="mpf-record-amount" placeholder="0.00" required class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" id="mpf-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition text-sm">儲存結餘</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                    <h3 class="text-sm sm:text-md font-bold text-slate-700">📜 每月漲跌變動</h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] sm:text-xs font-bold text-gray-600">篩選：</span>
+                        <select id="mpf-filter-account" onchange="renderMPFView()" class="border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-blue-700 bg-slate-50"></select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[550px]">
+                        <thead>
+                            <tr class="border-b bg-slate-50 text-slate-600 text-xs sm:text-sm">
+                                <th class="p-2 sm:p-3">戶口名稱</th>
+                                <th class="p-2 sm:p-3">年月</th>
+                                <th class="p-2 sm:p-3">錄入結餘</th>
+                                <th class="p-2 sm:p-3">折算 MOP</th>
+                                <th class="p-2 sm:p-3">較上月變動</th>
+                                <th class="p-2 sm:p-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mpf-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 估算淨資產 ==================== -->
+        <div id="tab-assets" class="space-y-4 sm:space-y-6 hidden">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-800">🧮 估算淨資產計算器</h2>
+                        <p class="text-[10px] sm:text-xs text-gray-500 mt-1">資產自動彙總自銀行與強積金；自訂負債自動扣減。</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] sm:text-xs text-gray-600 font-semibold">顯示幣種：</span>
+                        <div class="flex rounded-lg overflow-hidden border border-gray-300">
+                            <button onclick="setAssetCurrency('MOP')" id="asset-currency-mop" class="px-3 py-1 text-xs sm:text-sm font-bold bg-blue-600 text-white">MOP</button>
+                            <button onclick="setAssetCurrency('HKD')" id="asset-currency-hkd" class="px-3 py-1 text-xs sm:text-sm font-bold bg-white text-gray-700">HKD</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    <div class="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-xl">
+                        <div class="text-blue-600 text-[10px] sm:text-xs font-bold uppercase">1. 銀行存款資產</div>
+                        <div id="asset-bank-sum" class="text-xl sm:text-2xl font-bold text-blue-800 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 p-3 sm:p-4 rounded-xl">
+                        <div class="text-emerald-600 text-[10px] sm:text-xs font-bold uppercase">2. 強積金總資產</div>
+                        <div id="asset-mpf-sum" class="text-xl sm:text-2xl font-bold text-emerald-800 mt-1">MOP $0.00</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 p-3 sm:p-4 rounded-xl">
+                        <div class="text-rose-600 text-[10px] sm:text-xs font-bold uppercase">3. 自訂扣減/負債</div>
+                        <div id="asset-deduction-sum" class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">MOP $0.00</div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 sm:p-6 rounded-xl shadow-lg mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div>
+                        <div class="text-xs sm:text-sm font-semibold text-slate-300">估算最終淨資產</div>
+                        <div class="text-[10px] sm:text-xs text-slate-400 mt-0.5">=(銀行總存款 + 強積金總額) - 自訂扣減額</div>
+                    </div>
+                    <div id="final-net-worth" class="text-2xl sm:text-4xl font-extrabold text-emerald-400">MOP $0.00</div>
+                </div>
+
+                <div class="bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200">
+                    <h3 class="text-sm sm:text-md font-bold text-slate-800 mb-3 border-l-4 border-rose-500 pl-2">➖ 扣減 / 負債項目</h3>
+                    
+                    <form onsubmit="handleAddDeduction(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-5">
+                        <input type="text" id="deduct-name" placeholder="項目名稱 (例如：私人貸款)" required class="border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-rose-500">
+                        <div class="flex gap-2">
+                            <input type="number" step="0.01" min="0.01" id="deduct-amount" placeholder="扣減金額" required class="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-rose-500">
+                            <select id="deduct-currency" class="border border-gray-300 rounded-lg p-2.5 text-sm font-bold bg-white">
+                                <option value="MOP">MOP</option>
+                                <option value="HKD">HKD</option>
+                                <option value="CNY">CNY</option>
+                            </select>
+                        </div>
+                        <button type="submit" id="deduction-submit-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-lg transition text-sm">新增扣減項目</button>
+                    </form>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse bg-white rounded-lg overflow-hidden border border-gray-200 min-w-[400px]">
+                            <thead>
+                                <tr class="border-b bg-gray-100 text-slate-600 text-[10px] sm:text-xs uppercase">
+                                    <th class="p-2 sm:p-3">扣減/負債來源</th>
+                                    <th class="p-2 sm:p-3">原始金額</th>
+                                    <th class="p-2 sm:p-3">折算 <span id="deduction-display-currency">MOP</span></th>
+                                    <th class="p-2 sm:p-3 text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deduction-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ========== Firebase 雲端資料庫設定 ==========
+        // 請替換為你自己的 Firebase 專案設定
+        const firebaseConfig = {
+             apiKey: "AIzaSyAr_4P8sHYFDH2ZIW-04kvN8baHaePxxQ8",
+  authDomain: "financial-record-e41e9.firebaseapp.com",
+databaseURL: “https://financial-record-e41e9-default-rtdb.asia-southeast1.firebasedatabase.app/”,
+  projectId: "financial-record-e41e9",
+  storageBucket: "financial-record-e41e9.firebasestorage.app",
+  messagingSenderId: "1022975525620",
+  appId: "1:1022975525620:web:c918f787d51aae670214a1"
+};
+        // 全域狀態
+        let db = null;
+        let dataRef = null;
+        let isLocalMode = false;
+        let isSubmitting = false;
+        let currentTab = 'monthly';
+        let currentAssetCurrency = 'MOP'; // 淨資產顯示幣種
+
+        // ========== 全域常數與預設資料 ==========
+        const HKD_TO_MOP_RATE = 1.0315;
+        const CNY_TO_MOP_RATE = 1.11;
+        const LOCAL_STORAGE_KEY = 'macau_budget_local_v7';
+
+        const defaultChannels = [
+            { id: 1, name: '香港恒生銀行', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 2, name: '澳門中國銀行', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 3, name: '澳門ICBC', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 4, name: '澳門螞蟻銀行', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0, isAntBank: true },
+            { id: 11, name: '澳門發展銀行', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 5, name: 'MPay', type: 'epay', targetBankId: 4, label: 'MPay' },
+            { id: 6, name: 'BOC Pay', type: 'epay', targetBankId: 2, label: 'BOC Pay' },
+            { id: 7, name: '澳門中銀信用卡', type: 'credit', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 8, name: '香港中銀信用卡', type: 'credit', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 9, name: 'DBS 信用卡', type: 'credit', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 },
+            { id: 10, name: 'AE 信用卡', type: 'credit', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 }
+        ];
+
+        const defaultMPFAccounts = [
+            { id: 101, name: '永明強積金', currency: 'HKD' },
+            { id: 102, name: '宏利強積金', currency: 'HKD' }
+        ];
+
+        // 全域資料變數
+        let records = [];
+        let channels = [];
+        let mpfAccounts = [];
+        let mpfRecords = [];
+        let deductions = [];
+        let lastAntInterestDate = '';
+
+        // ========== 初始化與資料載入 ==========
+        function initApp() {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                dataRef = db.ref('budget_data');
+                
+                const timeoutId = setTimeout(() => {
+                    document.getElementById('loading-text').innerText = '雲端連線逾時';
+                    document.getElementById('fallback-btn').classList.remove('hidden');
+                }, 8000);
+
+                loadDataFromFirebase().then(() => {
+                    clearTimeout(timeoutId);
+                    finishInit();
+                    setupRealtimeListener();
+                }).catch(err => {
+                    clearTimeout(timeoutId);
+                    console.warn('Firebase 載入失敗，切換本機模式:', err);
+                    useLocalFallback();
+                });
+
+            } catch (err) {
+                console.warn('Firebase 初始化失敗，切換本機模式:', err);
+                useLocalFallback();
+            }
+        }
+
+        function useLocalFallback() {
+            isLocalMode = true;
+            loadDataFromLocal();
+            finishInit();
+            document.getElementById('loading-text').innerText = '⚠️ 目前為本機離線模式，資料不會雲端同步';
+            document.getElementById('fallback-btn').classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }, 500);
+        }
+
+        function finishInit() {
+            const today = new Date();
+            const currentYearMonth = today.toISOString().slice(0, 7);
+            const currentDate = today.toISOString().slice(0, 10);
+
+            document.getElementById('input-date').value = currentDate;
+            document.getElementById('selected-month').value = currentYearMonth;
+            document.getElementById('mpf-record-month').value = currentYearMonth;
+
+            initYearSelect();
+            renderAllViews();
+
+            if (lastAntInterestDate !== currentDate) {
+                addAntBankInterest(1, true);
+                lastAntInterestDate = currentDate;
+                saveData();
+            }
+
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }, 300);
+        }
+
+        // ========== 資料存取函式 ==========
+        function loadDataFromFirebase() {
+            return dataRef.once('value').then(snapshot => {
+                const data = snapshot.val();
+                parseLoadedData(data);
+            });
+        }
+
+        function loadDataFromLocal() {
+            const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+            const data = raw ? JSON.parse(raw) : null;
+            parseLoadedData(data);
+        }
+
+        function parseLoadedData(data) {
+            if (data) {
+                records = Array.isArray(data.records) ? data.records : [];
+                channels = Array.isArray(data.channels) ? data.channels : JSON.parse(JSON.stringify(defaultChannels));
+                mpfAccounts = Array.isArray(data.mpfAccounts) ? data.mpfAccounts : JSON.parse(JSON.stringify(defaultMPFAccounts));
+                mpfRecords = Array.isArray(data.mpfRecords) ? data.mpfRecords : [];
+                deductions = Array.isArray(data.deductions) ? data.deductions : [];
+                lastAntInterestDate = data.lastAntInterestDate || '';
+            } else {
+                records = [];
+                channels = JSON.parse(JSON.stringify(defaultChannels));
+                mpfAccounts = JSON.parse(JSON.stringify(defaultMPFAccounts));
+                mpfRecords = [];
+                deductions = [];
+                lastAntInterestDate = '';
+            }
+
+            if (!channels.some(c => c.name === '澳門發展銀行')) {
+                channels.push({ id: 11, name: '澳門發展銀行', type: 'bank', balanceMOP: 0, balanceHKD: 0, balanceCNY: 0 });
+            }
+            if (!channels.some(c => c.name === 'BOC Pay')) {
+                channels.push({ id: 6, name: 'BOC Pay', type: 'epay', targetBankId: 2, label: 'BOC Pay' });
+            }
+
+            normalizeAllData();
+        }
+
+        function normalizeAllData() {
+            channels.forEach(ch => {
+                ch.balanceMOP = Number(ch.balanceMOP) || 0;
+                ch.balanceHKD = Number(ch.balanceHKD) || 0;
+                ch.balanceCNY = Number(ch.balanceCNY) || 0;
+            });
+            records.forEach(r => {
+                r.amount = Number(r.amount) || 0;
+                r.mopAmount = Number(r.mopAmount) || 0;
+            });
+            mpfRecords.forEach(m => {
+                m.amount = Number(m.amount) || 0;
+                m.mopAmount = Number(m.mopAmount) || 0;
+            });
+            deductions.forEach(d => {
+                d.amount = Number(d.amount) || 0;
+                d.mopAmount = Number(d.mopAmount) || 0;
+            });
+        }
+
+        function saveData() {
+            const payload = {
+                records,
+                channels,
+                mpfAccounts,
+                mpfRecords,
+                deductions,
+                lastAntInterestDate
+            };
+
+            if (isLocalMode) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+            } else {
+                dataRef.set(payload).catch(err => {
+                    console.warn('雲端同步失敗:', err);
+                });
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+            }
+        }
+
+        function setupRealtimeListener() {
+            if (isLocalMode) return;
+            dataRef.on('value', snapshot => {
+                const data = snapshot.val();
+                if (data && !isSubmitting) {
+                    parseLoadedData(data);
+                    renderAllViews();
+                }
+            });
+        }
+
+        // ========== 通用工具函式 ==========
+        function convertToMOP(amount, currency) {
+            const num = Number(amount) || 0;
+            if (currency === 'HKD') return num * HKD_TO_MOP_RATE;
+            if (currency === 'CNY') return num * CNY_TO_MOP_RATE;
+            return num;
+        }
+
+        function convertFromMOP(amountMOP, targetCurrency) {
+            const num = Number(amountMOP) || 0;
+            if (targetCurrency === 'HKD') return num / HKD_TO_MOP_RATE;
+            if (targetCurrency === 'CNY') return num / CNY_TO_MOP_RATE;
+            return num;
+        }
+
+        function formatCurrency(amountMOP, displayCurrency) {
+            const value = displayCurrency === 'MOP' 
+                ? amountMOP 
+                : convertFromMOP(amountMOP, displayCurrency);
+            return `${displayCurrency} $${value.toFixed(2)}`;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['monthly', 'transfer', 'yearly', 'bank', 'mpf', 'assets'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}-btn`).className = "flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-[11px] sm:text-sm";
+            });
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}-btn`).className = "flex-1 min-w-[70px] sm:min-w-[110px] py-2.5 sm:py-3 font-semibold text-center bg-blue-600 text-white transition text-[11px] sm:text-sm";
+
+            renderAllViews();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderAllViews() {
+            if (currentTab === 'monthly') renderMonthlyView();
+            if (currentTab === 'transfer') renderTransferView();
+            if (currentTab === 'yearly') renderYearlyView();
+            if (currentTab === 'bank') renderBankView();
+            if (currentTab === 'mpf') renderMPFView();
+            if (currentTab === 'assets') renderAssetsView();
+        }
+
+        function toggleCustomCategoryInput() {
+            const val = document.getElementById('input-category-select').value;
+            const customContainer = document.getElementById('custom-category-container');
+            customContainer.classList.toggle('hidden', val !== '其他');
+        }
+
+        function setButtonLoading(btnId, loadingText) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.disabled = true;
+            btn.dataset.originalText = btn.innerText;
+            btn.innerText = loadingText;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+            isSubmitting = true;
+        }
+
+        function resetButtonLoading(btnId) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.disabled = false;
+            btn.innerText = btn.dataset.originalText || btn.innerText;
+            btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            isSubmitting = false;
+        }
+
+        // ========== 1. 月度記賬邏輯 ==========
+        function handleAddRecord(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('record-submit-btn', '處理中...');
+
+            const date = document.getElementById('input-date').value;
+            const type = document.getElementById('input-type').value;
+            const amount = parseFloat(document.getElementById('input-amount').value);
+            const currency = document.getElementById('input-currency').value;
+            
+            const catSelect = document.getElementById('input-category-select').value;
+            const customCat = document.getElementById('input-custom-category').value.trim();
+            const category = (catSelect === '其他') ? (customCat || '其他') : catSelect;
+
+            const channelId = parseInt(document.getElementById('input-payment-channel').value);
+            const remark = document.getElementById('input-remark').value.trim();
+
+            if (!amount || amount <= 0) {
+                alert('請輸入大於 0 的金額');
+                resetButtonLoading('record-submit-btn');
+                return;
+            }
+
+            const ch = channels.find(c => c.id === channelId);
+            if (!ch) {
+                resetButtonLoading('record-submit-btn');
+                return;
+            }
+
+            let actualTarget = ch;
+            if (ch.type === 'epay') {
+                actualTarget = channels.find(c => c.id === ch.targetBankId);
+            }
+
+            if (actualTarget) {
+                const isIncome = (type === 'income');
+                const delta = isIncome ? amount : -amount;
+                if (currency === 'MOP') actualTarget.balanceMOP += delta;
+                if (currency === 'HKD') actualTarget.balanceHKD += delta;
+                if (currency === 'CNY') actualTarget.balanceCNY += delta;
+            }
+
+            // 電子支付歸屬到對應銀行帳戶流水
+            const recordChannelId = ch.type === 'epay' ? actualTarget.id : ch.id;
+            const recordChannelName = ch.label || ch.name;
+
+            const mopAmount = convertToMOP(amount, currency);
+            records.push({
+                id: Date.now() + Math.random().toString(36).slice(2, 6),
+                date,
+                yearMonth: date.slice(0, 7),
+                type,
+                amount,
+                currency,
+                mopAmount,
+                category,
+                channelId: recordChannelId,
+                channelName: recordChannelName,
+                remark
+            });
+
+            saveData();
+            document.getElementById('input-amount').value = '';
+            document.getElementById('input-remark').value = '';
+            document.getElementById('input-custom-category').value = '';
+            
+            renderAllViews();
+            resetButtonLoading('record-submit-btn');
+        }
+
+        function deleteRecord(id) {
+            const rec = records.find(r => r.id === id);
+            if (!rec) return;
+            if (!confirm('確定刪除這筆紀錄嗎？對應帳戶餘額將會退回。')) return;
+
+            if (rec.type === 'transfer') {
+                const fromCh = channels.find(c => c.id === rec.transferFromId);
+                const toCh = channels.find(c => c.id === rec.transferToId);
+                if (fromCh && toCh) {
+                    if (rec.currency === 'MOP') {
+                        fromCh.balanceMOP += rec.amount;
+                        toCh.balanceMOP -= rec.amount;
+                    }
+                    if (rec.currency === 'HKD') {
+                        fromCh.balanceHKD += rec.amount;
+                        toCh.balanceHKD -= rec.amount;
+                    }
+                    if (rec.currency === 'CNY') {
+                        fromCh.balanceCNY += rec.amount;
+                        toCh.balanceCNY -= rec.amount;
+                    }
+                }
+            } else {
+                // 找到對應的銀行帳戶（電子支付已歸屬到銀行）
+                const targetCh = channels.find(c => c.id === rec.channelId);
+                if (targetCh) {
+                    const adjust = rec.type === 'income' ? -rec.amount : rec.amount;
+                    if (rec.currency === 'MOP') targetCh.balanceMOP += adjust;
+                    if (rec.currency === 'HKD') targetCh.balanceHKD += adjust;
+                    if (rec.currency === 'CNY') targetCh.balanceCNY += adjust;
+                }
+            }
+
+            records = records.filter(r => r.id !== id);
+            saveData();
+            renderAllViews();
+        }
+
+        function renderMonthlyView() {
+            const chSelect = document.getElementById('input-payment-channel');
+            chSelect.innerHTML = '';
+
+            const gEpay = document.createElement('optgroup');
+            gEpay.label = "📱 電子支付";
+            channels.filter(c => c.type === 'epay').forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = c.label || c.name;
+                gEpay.appendChild(opt);
+            });
+
+            const gBank = document.createElement('optgroup');
+            gBank.label = "🏦 銀行帳戶";
+            channels.filter(c => c.type === 'bank').forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = c.name;
+                gBank.appendChild(opt);
+            });
+
+            const gCredit = document.createElement('optgroup');
+            gCredit.label = "💳 信用卡";
+            channels.filter(c => c.type === 'credit').forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = c.name;
+                gCredit.appendChild(opt);
+            });
+
+            chSelect.appendChild(gEpay);
+            chSelect.appendChild(gBank);
+            chSelect.appendChild(gCredit);
+
+            const selectedMonth = document.getElementById('selected-month').value;
+            const filtered = records.filter(r => r.yearMonth === selectedMonth);
+
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            const tbody = document.getElementById('monthly-table-body');
+            tbody.innerHTML = '';
+
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(r => {
+                if (r.type === 'income') totalIncome += r.mopAmount;
+                else if (r.type === 'expense') totalExpense += r.mopAmount;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+
+                let typeClass, typeText, amountClass;
+                if (r.type === 'income') {
+                    typeClass = 'bg-emerald-100 text-emerald-700';
+                    typeText = '收入';
+                    amountClass = 'text-emerald-600';
+                } else if (r.type === 'expense') {
+                    typeClass = 'bg-rose-100 text-rose-700';
+                    typeText = '支出';
+                    amountClass = 'text-rose-600';
+                } else {
+                    typeClass = 'bg-amber-100 text-amber-700';
+                    typeText = '轉帳';
+                    amountClass = 'text-amber-600';
+                }
+
+                tr.innerHTML = `
+                    <td class="p-2 font-medium">${r.date}</td>
+                    <td class="p-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${typeClass}">${typeText}</span>
+                    </td>
+                    <td class="p-2 font-medium">${r.currency} $${r.amount.toFixed(2)}</td>
+                    <td class="p-2 font-bold ${amountClass}">${r.mopAmount.toFixed(2)}</td>
+                    <td class="p-2"><span class="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-medium">${r.category}</span></td>
+                    <td class="p-2"><span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">${r.channelName}</span></td>
+                    <td class="p-2 text-gray-500 text-[10px]">${r.remark || '-'}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteRecord('${r.id}')" class="text-rose-500 hover:text-rose-700 font-bold text-[10px] px-1 py-0.5 rounded">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (filtered.length === 0) tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-400 text-sm">當月暫無紀錄</td></tr>`;
+
+            document.getElementById('monthly-income').innerText = `MOP $${totalIncome.toFixed(2)}`;
+            document.getElementById('monthly-expense').innerText = `MOP $${totalExpense.toFixed(2)}`;
+            const net = totalIncome - totalExpense;
+            const balEl = document.getElementById('monthly-balance');
+            balEl.innerText = `MOP $${net.toFixed(2)}`;
+            balEl.className = `text-xl sm:text-2xl font-bold mt-1 ${net >= 0 ? 'text-blue-700' : 'text-rose-600'}`;
+
+            renderCategoryStats(filtered, totalExpense);
+        }
+
+        function renderCategoryStats(filteredRecords, totalMonthExpense) {
+            const container = document.getElementById('category-stats-container');
+            container.innerHTML = '';
+
+            const catTotals = {};
+            filteredRecords.filter(r => r.type === 'expense').forEach(r => {
+                catTotals[r.category] = (catTotals[r.category] || 0) + r.mopAmount;
+            });
+
+            const categories = Object.keys(catTotals);
+            if (categories.length === 0) {
+                container.innerHTML = `<div class="col-span-full py-4 text-center text-gray-400 text-sm">當月暫無任何支出紀錄</div>`;
+                return;
+            }
+
+            categories.sort((a, b) => catTotals[b] - catTotals[a]).forEach(cat => {
+                const amount = catTotals[cat];
+                const pct = totalMonthExpense > 0 ? ((amount / totalMonthExpense) * 100).toFixed(1) : '0.0';
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-50 border border-slate-200 p-2.5 rounded-lg flex flex-col justify-between";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-slate-700 text-xs sm:text-sm">${cat}</span>
+                        <span class="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-1 py-0.5 rounded">${pct}%</span>
+                    </div>
+                    <div class="text-base sm:text-lg font-bold text-rose-700 mb-1">${amount.toFixed(2)}</div>
+                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-rose-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ========== 2. 資金調撥邏輯 ==========
+        function handleBankTransfer(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('transfer-submit-btn', '處理中...');
+
+            const fromId = parseInt(document.getElementById('transfer-from').value);
+            const toId = parseInt(document.getElementById('transfer-to').value);
+            const amount = parseFloat(document.getElementById('transfer-amount').value);
+            const currency = document.getElementById('transfer-currency').value;
+            const remark = document.getElementById('transfer-remark').value.trim() || '內部轉帳';
+
+            if (fromId === toId) {
+                alert('轉出與轉入帳戶不能相同！');
+                resetButtonLoading('transfer-submit-btn');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert('轉帳金額必須大於 0！');
+                resetButtonLoading('transfer-submit-btn');
+                return;
+            }
+
+            const fromCh = channels.find(c => c.id === fromId);
+            const toCh = channels.find(c => c.id === toId);
+            if (!fromCh || !toCh) {
+                resetButtonLoading('transfer-submit-btn');
+                return;
+            }
+
+            if (currency === 'MOP') {
+                fromCh.balanceMOP -= amount;
+                toCh.balanceMOP += amount;
+            }
+            if (currency === 'HKD') {
+                fromCh.balanceHKD -= amount;
+                toCh.balanceHKD += amount;
+            }
+            if (currency === 'CNY') {
+                fromCh.balanceCNY -= amount;
+                toCh.balanceCNY += amount;
+            }
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+            records.push({
+                id: Date.now() + Math.random().toString(36).slice(2, 6),
+                date: todayStr,
+                yearMonth: todayStr.slice(0, 7),
+                type: 'transfer',
+                amount,
+                currency,
+                mopAmount: convertToMOP(amount, currency),
+                category: '內部轉帳',
+                channelId: fromId,
+                channelName: `${fromCh.name} → ${toCh.name}`,
+                transferFromId: fromId,
+                transferToId: toId,
+                remark
+            });
+
+            saveData();
+            document.getElementById('transfer-amount').value = '';
+            document.getElementById('transfer-remark').value = '';
+            
+            renderAllViews();
+            resetButtonLoading('transfer-submit-btn');
+            alert('轉帳成功！');
+        }
+
+        function handleCreditCardPayment(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('payment-submit-btn', '處理中...');
+
+            const bankId = parseInt(document.getElementById('payment-from-bank').value);
+            const creditId = parseInt(document.getElementById('payment-to-credit').value);
+            const amount = parseFloat(document.getElementById('payment-amount').value);
+            const currency = document.getElementById('payment-currency').value;
+            const remark = document.getElementById('payment-remark').value.trim() || '信用卡還款';
+
+            if (!amount || amount <= 0) {
+                alert('還款金額必須大於 0！');
+                resetButtonLoading('payment-submit-btn');
+                return;
+            }
+
+            const bankCh = channels.find(c => c.id === bankId);
+            const creditCh = channels.find(c => c.id === creditId);
+            if (!bankCh || !creditCh) {
+                resetButtonLoading('payment-submit-btn');
+                return;
+            }
+
+            if (currency === 'MOP') {
+                bankCh.balanceMOP -= amount;
+                creditCh.balanceMOP += amount;
+            }
+            if (currency === 'HKD') {
+                bankCh.balanceHKD -= amount;
+                creditCh.balanceHKD += amount;
+            }
+            if (currency === 'CNY') {
+                bankCh.balanceCNY -= amount;
+                creditCh.balanceCNY += amount;
+            }
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+            records.push({
+                id: Date.now() + Math.random().toString(36).slice(2, 6),
+                date: todayStr,
+                yearMonth: todayStr.slice(0, 7),
+                type: 'transfer',
+                amount,
+                currency,
+                mopAmount: convertToMOP(amount, currency),
+                category: '信用卡還款',
+                channelId: bankId,
+                channelName: `${bankCh.name} → ${creditCh.name}`,
+                transferFromId: bankId,
+                transferToId: creditId,
+                remark
+            });
+
+            saveData();
+            document.getElementById('payment-amount').value = '';
+            document.getElementById('payment-remark').value = '';
+            
+            renderAllViews();
+            resetButtonLoading('payment-submit-btn');
+            alert('信用卡還款成功！');
+        }
+
+        function renderTransferView() {
+            const transferFrom = document.getElementById('transfer-from');
+            const transferTo = document.getElementById('transfer-to');
+            const paymentFromBank = document.getElementById('payment-from-bank');
+            const paymentToCredit = document.getElementById('payment-to-credit');
+
+            transferFrom.innerHTML = '';
+            transferTo.innerHTML = '';
+            paymentFromBank.innerHTML = '';
+            channels.filter(c => c.type === 'bank').forEach(c => {
+                transferFrom.appendChild(new Option(c.name, c.id));
+                transferTo.appendChild(new Option(c.name, c.id));
+                paymentFromBank.appendChild(new Option(c.name, c.id));
+            });
+
+            paymentToCredit.innerHTML = '';
+            channels.filter(c => c.type === 'credit').forEach(c => {
+                paymentToCredit.appendChild(new Option(c.name, c.id));
+            });
+
+            const tbody = document.getElementById('transfer-table-body');
+            tbody.innerHTML = '';
+            const transferRecords = records.filter(r => r.type === 'transfer')
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 20);
+
+            if (transferRecords.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-400 text-sm">暫無轉帳/還款紀錄</td></tr>`;
+                return;
+            }
+
+            transferRecords.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-medium">${r.date}</td>
+                    <td class="p-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">${r.category}</span>
+                    </td>
+                    <td class="p-2 font-medium text-amber-700">${r.currency} $${r.amount.toFixed(2)}</td>
+                    <td class="p-2 text-[10px] sm:text-xs font-medium">${r.channelName}</td>
+                    <td class="p-2 text-gray-500 text-[10px]">${r.remark || '-'}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteRecord('${r.id}')" class="text-rose-500 hover:text-rose-700 font-bold text-[10px] px-1 py-0.5 rounded">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ========== 3. 年度結算邏輯 ==========
+        function initYearSelect() {
+            const select = document.getElementById('selected-year');
+            const year = new Date().getFullYear();
+            select.innerHTML = '';
+            for (let y = year - 2; y <= year + 2; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.innerText = `${y} 年`;
+                if (y === year) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+
+        function renderYearlyView() {
+            const year = document.getElementById('selected-year').value;
+            let yearlyIncome = 0;
+            let yearlyExpense = 0;
+
+            const monthly = Array.from({ length: 12 }, (_, i) => ({
+                month: `${year}-${String(i + 1).padStart(2, '0')}`,
+                income: 0,
+                expense: 0
+            }));
+
+            records.filter(r => r.date.startsWith(year) && r.type !== 'transfer').forEach(r => {
+                const idx = parseInt(r.date.slice(5, 7)) - 1;
+                if (idx < 0 || idx >= 12) return;
+                if (r.type === 'income') {
+                    yearlyIncome += r.mopAmount;
+                    monthly[idx].income += r.mopAmount;
+                } else if (r.type === 'expense') {
+                    yearlyExpense += r.mopAmount;
+                    monthly[idx].expense += r.mopAmount;
+                }
+            });
+
+            document.getElementById('yearly-income').innerText = `MOP $${yearlyIncome.toFixed(2)}`;
+            document.getElementById('yearly-expense').innerText = `MOP $${yearlyExpense.toFixed(2)}`;
+            const net = yearlyIncome - yearlyExpense;
+            document.getElementById('yearly-balance').innerText = `MOP $${net.toFixed(2)}`;
+
+            const tbody = document.getElementById('yearly-table-body');
+            tbody.innerHTML = '';
+            monthly.forEach(m => {
+                const mNet = m.income - m.expense;
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-bold">${m.month}</td>
+                    <td class="p-2 text-emerald-600 font-medium">+${m.income.toFixed(2)}</td>
+                    <td class="p-2 text-rose-600 font-medium">-${m.expense.toFixed(2)}</td>
+                    <td class="p-2 font-bold ${mNet >= 0 ? 'text-blue-600' : 'text-rose-600'}">${mNet.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ========== 4. 銀行渠道邏輯 ==========
+        function renderBankView() {
+            const tbody = document.getElementById('bank-table-body');
+            tbody.innerHTML = '';
+
+            let totalBankMOP = 0;
+            let totalCreditMOP = 0;
+
+            const visibleChannels = channels.filter(ch => ch.type !== 'epay');
+
+            visibleChannels.forEach(ch => {
+                let typeBadge = '';
+                let subtotalMOP = 0;
+
+                if (ch.type === 'bank') {
+                    typeBadge = `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">銀行</span>`;
+                    subtotalMOP = ch.balanceMOP + convertToMOP(ch.balanceHKD, 'HKD') + convertToMOP(ch.balanceCNY, 'CNY');
+                    totalBankMOP += subtotalMOP;
+                } else if (ch.type === 'credit') {
+                    typeBadge = `<span class="bg-rose-100 text-rose-800 text-[10px] px-2 py-0.5 rounded font-bold">信用卡</span>`;
+                    subtotalMOP = ch.balanceMOP + convertToMOP(ch.balanceHKD, 'HKD') + convertToMOP(ch.balanceCNY, 'CNY');
+                    totalCreditMOP += subtotalMOP;
+                }
+
+                const isAntBank = ch.name.includes('螞蟻銀行');
+                let antInterestBtn = '';
+                if (isAntBank) {
+                    const estDailyMop = ((ch.balanceMOP) * 0.02 / 365).toFixed(2);
+                    antInterestBtn = `
+                        <button onclick="addAntBankInterest(1)" class="text-amber-800 bg-amber-100 border border-amber-300 hover:bg-amber-200 font-bold text-[10px] px-2 py-1 rounded mr-1 mb-1" title="按 MOP 結餘 2% 年利率計算">
+                            🌾 利息
+                        </button>
+                    `;
+                }
+
+                let subtotalText = '';
+                if (ch.type === 'credit') {
+                    if (subtotalMOP < 0) {
+                        subtotalText = `欠款 ${Math.abs(subtotalMOP).toFixed(0)}`;
+                    } else if (subtotalMOP > 0) {
+                        subtotalText = `結餘 ${subtotalMOP.toFixed(0)}`;
+                    } else {
+                        subtotalText = '0';
+                    }
+                } else {
+                    subtotalText = subtotalMOP.toFixed(0);
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-bold text-slate-800 text-xs">
+                        ${ch.label || ch.name}
+                        ${isAntBank ? '<span class="ml-1 text-[10px] text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 font-normal">2%</span>' : ''}
+                    </td>
+                    <td class="p-2">${typeBadge}</td>
+                    <td class="p-2">
+                        <input type="number" step="0.01" value="${ch.balanceMOP.toFixed(2)}" onchange="updateChannelBalance(${ch.id}, 'MOP', this.value)" class="border border-gray-300 rounded px-1 py-1 w-16 text-xs font-semibold">
+                    </td>
+                    <td class="p-2">
+                        <input type="number" step="0.01" value="${ch.balanceHKD.toFixed(2)}" onchange="updateChannelBalance(${ch.id}, 'HKD', this.value)" class="border border-gray-300 rounded px-1 py-1 w-16 text-xs font-semibold">
+                    </td>
+                    <td class="p-2">
+                        <input type="number" step="0.01" value="${ch.balanceCNY.toFixed(2)}" onchange="updateChannelBalance(${ch.id}, 'CNY', this.value)" class="border border-gray-300 rounded px-1 py-1 w-16 text-xs font-semibold">
+                    </td>
+                    <td class="p-2 font-bold ${ch.type === 'credit' ? 'text-rose-600' : 'text-blue-700'} text-xs">
+                        ${subtotalText}
+                    </td>
+                    <td class="p-2 text-center">
+                        ${antInterestBtn}
+                        <button onclick="openDepositModal(${ch.id})" class="text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 font-bold text-[10px] px-2 py-1 rounded mr-1 mb-1">存入</button>
+                        <button onclick="viewChannelStatement(${ch.id})" class="text-blue-600 bg-blue-50 border border-blue-200 font-bold text-[10px] px-2 py-1 rounded">流水</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const netAssets = totalBankMOP + totalCreditMOP;
+            document.getElementById('total-bank-assets').innerText = `MOP $${netAssets.toFixed(2)}`;
+        }
+
+        function addAntBankInterest(days = 1, auto = false) {
+            const antBank = channels.find(c => c.name.includes('螞蟻銀行'));
+            if (!antBank) return auto ? null : alert('找不到澳門螞蟻銀行帳戶');
+
+            const currentBalance = antBank.balanceMOP;
+            if (currentBalance <= 0) {
+                return auto ? null : alert('澳門螞蟻銀行現時 MOP 結餘為 0，請先存入資金以計算 2% 年利率利息。');
+            }
+
+            const annualRate = 0.02;
+            const dailyInterest = parseFloat(((currentBalance * annualRate) / 365 * days).toFixed(2));
+            if (dailyInterest <= 0) return auto ? null : alert('計算利息金額過小，暫不存入。');
+
+            if (auto || confirm(`【澳門螞蟻銀行 - 每日利息】\n當前 MOP 結餘：MOP $${currentBalance.toFixed(2)}\n按年利率 2% 計算 ${days} 天利息：MOP $${dailyInterest.toFixed(2)}\n\n是否確認將利息直接加入帳戶？`)) {
+                antBank.balanceMOP += dailyInterest;
+
+                const todayStr = new Date().toISOString().slice(0, 10);
+                records.push({
+                    id: Date.now() + Math.random().toString(36).slice(2, 6),
+                    date: todayStr,
+                    yearMonth: todayStr.slice(0, 7),
+                    type: 'income',
+                    amount: dailyInterest,
+                    currency: 'MOP',
+                    mopAmount: dailyInterest,
+                    category: '利息收入',
+                    channelId: antBank.id,
+                    channelName: antBank.name,
+                    remark: `澳門螞蟻銀行每日利息 (年利率 2% x ${days}天)`
+                });
+
+                lastAntInterestDate = todayStr;
+                saveData();
+                renderAllViews();
+                if (!auto) alert(`已成功為澳門螞蟻銀行存入 MOP $${dailyInterest.toFixed(2)} 利息！`);
+            }
+        }
+
+        function updateChannelBalance(chId, curr, val) {
+            const ch = channels.find(c => c.id === chId);
+            if (!ch) return;
+            const amount = parseFloat(val);
+            if (isNaN(amount)) return;
+
+            if (curr === 'MOP') ch.balanceMOP = amount;
+            if (curr === 'HKD') ch.balanceHKD = amount;
+            if (curr === 'CNY') ch.balanceCNY = amount;
+
+            saveData();
+            renderAllViews();
+        }
+
+        function openDepositModal(chId) {
+            const ch = channels.find(c => c.id === chId);
+            if (!ch) return;
+            document.getElementById('deposit-channel-id').value = ch.id;
+            document.getElementById('deposit-modal-title').innerText = `💰 為「${ch.name}」存入資金`;
+            document.getElementById('deposit-modal').classList.remove('hidden');
+            document.getElementById('deposit-modal').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeDepositModal() {
+            document.getElementById('deposit-modal').classList.add('hidden');
+        }
+
+        function handleExecuteDeposit(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('deposit-submit-btn', '處理中...');
+
+            const chId = parseInt(document.getElementById('deposit-channel-id').value);
+            const currency = document.getElementById('deposit-currency').value;
+            const amount = parseFloat(document.getElementById('deposit-amount').value);
+            const remark = document.getElementById('deposit-remark').value.trim() || '存入資金';
+
+            const ch = channels.find(c => c.id === chId);
+            if (!ch || !amount || amount <= 0) {
+                resetButtonLoading('deposit-submit-btn');
+                return;
+            }
+
+            if (currency === 'MOP') ch.balanceMOP += amount;
+            if (currency === 'HKD') ch.balanceHKD += amount;
+            if (currency === 'CNY') ch.balanceCNY += amount;
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+            records.push({
+                id: Date.now() + Math.random().toString(36).slice(2, 6),
+                date: todayStr,
+                yearMonth: todayStr.slice(0, 7),
+                type: 'income',
+                amount,
+                currency,
+                mopAmount: convertToMOP(amount, currency),
+                category: '帳戶存入/還款',
+                channelId: ch.id,
+                channelName: ch.name,
+                remark
+            });
+
+            saveData();
+            document.getElementById('deposit-amount').value = '';
+            document.getElementById('deposit-remark').value = '';
+            closeDepositModal();
+            
+            renderAllViews();
+            resetButtonLoading('deposit-submit-btn');
+        }
+
+        function viewChannelStatement(chId) {
+            const ch = channels.find(c => c.id === chId);
+            if (!ch) return;
+
+            const section = document.getElementById('bank-statement-section');
+            document.getElementById('statement-title').innerText = `📜 ${ch.label || ch.name} — 流水帳`;
+            const tbody = document.getElementById('statement-table-body');
+            tbody.innerHTML = '';
+
+            // 查詢該帳戶所有交易（包含電子支付歸屬的交易）
+            const chRecs = records.filter(r => r.channelId === chId)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (chRecs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-400 text-sm">該渠道暫無交易紀錄</td></tr>`;
+            } else {
+                chRecs.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50";
+                    let typeClass = r.type === 'income' ? 'bg-emerald-100 text-emerald-700' : r.type === 'expense' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+                    let typeText = r.type === 'income' ? '收入 (+)' : r.type === 'expense' ? '支出 (-)' : '轉帳';
+                    let amountClass = r.type === 'income' ? 'text-emerald-600' : r.type === 'expense' ? 'text-rose-600' : 'text-amber-600';
+                    let sign = r.type === 'income' ? '+' : r.type === 'expense' ? '-' : '';
+
+                    tr.innerHTML = `
+                        <td class="p-2 font-medium">${r.date}</td>
+                        <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${typeClass}">${typeText}</span></td>
+                        <td class="p-2 font-bold ${amountClass}">${sign}${r.currency} $${r.amount.toFixed(2)}</td>
+                        <td class="p-2 text-xs font-medium text-blue-700">${r.channelName}</td>
+                        <td class="p-2 text-xs">${r.category}</td>
+                        <td class="p-2 text-gray-500 text-[10px]">${r.remark || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            section.classList.remove('hidden');
+            section.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeStatement() {
+            document.getElementById('bank-statement-section').classList.add('hidden');
+        }
+
+        // ========== 5. 強積金邏輯 ==========
+        function handleAddMPFAccount() {
+            const nameInput = document.getElementById('new-mpf-account-name');
+            const name = nameInput.value.trim();
+            const currency = document.getElementById('new-mpf-account-currency').value;
+
+            if (!name) return alert('請輸入強積金戶口名稱！');
+            mpfAccounts.push({ id: Date.now(), name, currency });
+            saveData();
+            nameInput.value = '';
+            renderAllViews();
+        }
+
+        function handleSaveMPFRecord(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('mpf-submit-btn', '處理中...');
+
+            const accountId = parseInt(document.getElementById('mpf-record-account').value);
+            const month = document.getElementById('mpf-record-month').value;
+            const amount = parseFloat(document.getElementById('mpf-record-amount').value);
+
+            const acc = mpfAccounts.find(a => a.id === accountId);
+            if (!acc || isNaN(amount)) {
+                resetButtonLoading('mpf-submit-btn');
+                return;
+            }
+
+            const mopAmount = convertToMOP(amount, acc.currency);
+            const idx = mpfRecords.findIndex(m => m.accountId === accountId && m.month === month);
+
+            if (idx >= 0) {
+                mpfRecords[idx] = { accountId, accountName: acc.name, month, amount, currency: acc.currency, mopAmount };
+            } else {
+                mpfRecords.push({ accountId, accountName: acc.name, month, amount, currency: acc.currency, mopAmount });
+            }
+
+            saveData();
+            document.getElementById('mpf-record-amount').value = '';
+            
+            renderAllViews();
+            resetButtonLoading('mpf-submit-btn');
+        }
+
+        function renderMPFView() {
+            const selectRecord = document.getElementById('mpf-record-account');
+            const selectFilter = document.getElementById('mpf-filter-account');
+            selectRecord.innerHTML = '';
+            
+            const prevFilterVal = selectFilter.value;
+            selectFilter.innerHTML = '<option value="ALL">全部</option>';
+
+            mpfAccounts.forEach(acc => {
+                selectRecord.appendChild(new Option(`${acc.name} (${acc.currency})`, acc.id));
+                selectFilter.appendChild(new Option(acc.name, acc.id));
+            });
+            if (prevFilterVal) selectFilter.value = prevFilterVal;
+
+            let totalMpfMOP = 0;
+            mpfAccounts.forEach(acc => {
+                const accRecs = mpfRecords.filter(m => m.accountId === acc.id).sort((a, b) => b.month.localeCompare(a.month));
+                if (accRecs.length > 0) totalMpfMOP += accRecs[0].mopAmount;
+            });
+            document.getElementById('total-mpf-assets').innerText = `MOP $${totalMpfMOP.toFixed(2)}`;
+
+            const tbody = document.getElementById('mpf-table-body');
+            tbody.innerHTML = '';
+
+            const selectedFilterId = selectFilter.value;
+            let displayRecords = [...mpfRecords];
+            if (selectedFilterId !== 'ALL') {
+                displayRecords = displayRecords.filter(r => r.accountId === parseInt(selectedFilterId));
+            }
+
+            if (displayRecords.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-400 text-sm">暫無結餘紀錄</td></tr>`;
+                return;
+            }
+
+            displayRecords.sort((a, b) => b.month.localeCompare(a.month));
+            displayRecords.forEach(m => {
+                const sameAccRecs = mpfRecords.filter(r => r.accountId === m.accountId).sort((a, b) => b.month.localeCompare(a.month));
+                const currentIdx = sameAccRecs.findIndex(r => r.month === m.month);
+
+                let diffText = '-';
+                let diffClass = 'text-gray-500';
+
+                if (currentIdx < sameAccRecs.length - 1) {
+                    const prevMop = sameAccRecs[currentIdx + 1].mopAmount;
+                    const diff = m.mopAmount - prevMop;
+                    const percent = prevMop > 0 ? ((diff / prevMop) * 100).toFixed(1) : 0;
+
+                    if (diff > 0) {
+                        diffText = `▲ +${diff.toFixed(0)} (+${percent}%)`;
+                        diffClass = 'text-emerald-600 font-bold';
+                    } else if (diff < 0) {
+                        diffText = `▼ -${Math.abs(diff).toFixed(0)} (${percent}%)`;
+                        diffClass = 'text-rose-600 font-bold';
+                    } else {
+                        diffText = '0 (0%)';
+                    }
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-bold text-slate-800 text-xs">${m.accountName}</td>
+                    <td class="p-2 font-semibold">${m.month}</td>
+                    <td class="p-2 font-medium">${m.currency} ${m.amount.toFixed(0)}</td>
+                    <td class="p-2 font-bold text-blue-700">${m.mopAmount.toFixed(0)}</td>
+                    <td class="p-2 ${diffClass} text-[10px] sm:text-xs">${diffText}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteMPFRecord(${m.accountId}, '${m.month}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-bold">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteMPFRecord(accId, month) {
+            if (!confirm('確定刪除該月強積金紀錄嗎？')) return;
+            mpfRecords = mpfRecords.filter(m => !(m.accountId === accId && m.month === month));
+            saveData();
+            renderAllViews();
+        }
+
+        // ========== 6. 淨資產邏輯 ==========
+        function setAssetCurrency(currency) {
+            currentAssetCurrency = currency;
+            
+            // 更新按鈕樣式
+            const mopBtn = document.getElementById('asset-currency-mop');
+            const hkdBtn = document.getElementById('asset-currency-hkd');
+            
+            if (currency === 'MOP') {
+                mopBtn.className = 'px-3 py-1 text-xs sm:text-sm font-bold bg-blue-600 text-white';
+                hkdBtn.className = 'px-3 py-1 text-xs sm:text-sm font-bold bg-white text-gray-700';
+            } else {
+                mopBtn.className = 'px-3 py-1 text-xs sm:text-sm font-bold bg-white text-gray-700';
+                hkdBtn.className = 'px-3 py-1 text-xs sm:text-sm font-bold bg-blue-600 text-white';
+            }
+
+            document.getElementById('deduction-display-currency').innerText = currency;
+            renderAssetsView();
+        }
+
+        function renderAssetsView() {
+            let totalBankMOP = 0;
+            channels.filter(c => c.type === 'bank').forEach(b => {
+                totalBankMOP += b.balanceMOP + convertToMOP(b.balanceHKD, 'HKD') + convertToMOP(b.balanceCNY, 'CNY');
+            });
+
+            let totalMpfMOP = 0;
+            mpfAccounts.forEach(acc => {
+                const accRecs = mpfRecords.filter(m => m.accountId === acc.id).sort((a, b) => b.month.localeCompare(a.month));
+                if (accRecs.length > 0) totalMpfMOP += accRecs[0].mopAmount;
+            });
+
+            let totalCustomDeductionMOP = 0;
+            deductions.forEach(d => {
+                totalCustomDeductionMOP += d.mopAmount;
+            });
+
+            const netWorthMOP = (totalBankMOP + totalMpfMOP) - totalCustomDeductionMOP;
+
+            // 根據選擇幣種顯示
+            document.getElementById('asset-bank-sum').innerText = formatCurrency(totalBankMOP, currentAssetCurrency);
+            document.getElementById('asset-mpf-sum').innerText = formatCurrency(totalMpfMOP, currentAssetCurrency);
+            document.getElementById('asset-deduction-sum').innerText = formatCurrency(totalCustomDeductionMOP, currentAssetCurrency);
+
+            const finalWorthEl = document.getElementById('final-net-worth');
+            finalWorthEl.innerText = formatCurrency(netWorthMOP, currentAssetCurrency);
+            finalWorthEl.className = `text-2xl sm:text-4xl font-extrabold ${netWorthMOP >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+            const tbody = document.getElementById('deduction-table-body');
+            tbody.innerHTML = '';
+            let hasDeductions = false;
+
+            deductions.forEach(d => {
+                hasDeductions = true;
+                const displayAmount = currentAssetCurrency === 'MOP' 
+                    ? d.mopAmount 
+                    : convertFromMOP(d.mopAmount, currentAssetCurrency);
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-semibold text-slate-800">${d.name}</td>
+                    <td class="p-2 font-medium">${d.currency} $${d.amount.toFixed(2)}</td>
+                    <td class="p-2 font-bold text-rose-600">- ${displayAmount.toFixed(2)}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteDeduction(${d.id})" class="text-rose-500 hover:text-rose-700 text-[10px] font-bold">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (!hasDeductions) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400 text-sm">暫無任何扣減或負債</td></tr>`;
+            }
+        }
+
+        function handleAddDeduction(e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+            setButtonLoading('deduction-submit-btn', '處理中...');
+
+            const name = document.getElementById('deduct-name').value.trim();
+            const amount = parseFloat(document.getElementById('deduct-amount').value);
+            const currency = document.getElementById('deduct-currency').value;
+
+            if (!name || isNaN(amount) || amount <= 0) {
+                resetButtonLoading('deduction-submit-btn');
+                return;
+            }
+
+            const mopAmount = convertToMOP(amount, currency);
+            deductions.push({ id: Date.now(), name, amount, currency, mopAmount });
+
+            saveData();
+            document.getElementById('deduct-name').value = '';
+            document.getElementById('deduct-amount').value = '';
+            
+            renderAllViews();
+            resetButtonLoading('deduction-submit-btn');
+        }
+
+        function deleteDeduction(id) {
+            deductions = deductions.filter(d => d.id !== id);
+            saveData();
+            renderAllViews();
+        }
+
+        // ========== 頁面初始化 ==========
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
