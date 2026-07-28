@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Fergus的收支與資產管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (Compat 版本) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.min.js"></script>
 </head>
@@ -519,15 +519,14 @@
     <script>
         // ========== Firebase 雲端資料庫設定 ==========
         const firebaseConfig = {
-           apiKey: "AIzaSyDARQel_FE1owKu7vcwj5Vb2mQQPHbdJUg",
+            apiKey: "AIzaSyDARQel_FE1owKu7vcwj5Vb2mQQPHbdJUg",
   authDomain: "budget-tracker-f6987.firebaseapp.com",
-databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebasedatabase.app/",
-  projectId: "budget-tracker-f6987",
+            databaseURL: "https://financial-record-e41e9-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            projectId: "budget-tracker-f6987",
   storageBucket: "budget-tracker-f6987.firebasestorage.app",
   messagingSenderId: "95285914076",
   appId: "1:95285914076:web:44f6058eedbabc858cc719"
-};
-
+        };
 
         // 全域狀態
         let db = null;
@@ -572,14 +571,17 @@ databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebase
         // ========== 初始化與資料載入 ==========
         function initApp() {
             try {
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
+                // 防護判斷：檢查 Firebase SDK 是否已成功載入
+                if (typeof firebase === 'undefined') {
+                    throw new Error("Firebase SDK 未能成功載入，可能被網路或廣告攔截器阻擋。");
                 }
+
+                firebase.initializeApp(firebaseConfig);
                 db = firebase.database();
                 dataRef = db.ref('budget_data');
                 
                 const timeoutId = setTimeout(() => {
-                    document.getElementById('loading-text').innerText = '雲端連線逾時，請檢查網路或 Firebase 設定';
+                    document.getElementById('loading-text').innerText = '雲端連線逾時';
                     document.getElementById('fallback-btn').classList.remove('hidden');
                 }, 8000);
 
@@ -704,20 +706,18 @@ databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebase
                 lastAntInterestDate
             };
 
-            // 本地儲存備份
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
-
-            // 雲端同步
-            if (!isLocalMode && dataRef) {
+            if (isLocalMode) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+            } else {
                 dataRef.set(payload).catch(err => {
                     console.warn('雲端同步失敗:', err);
                 });
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
             }
         }
 
         function setupRealtimeListener() {
-            if (isLocalMode || !dataRef) return;
-            // 監聽雲端資料變更並自動跨手機同步
+            if (isLocalMode) return;
             dataRef.on('value', snapshot => {
                 const data = snapshot.val();
                 if (data && !isSubmitting) {
@@ -726,13 +726,6 @@ databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebase
                 }
             });
         }
-
-        // 手機休眠醒來時自動刷新最新資料
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && !isLocalMode && dataRef) {
-                loadDataFromFirebase().then(() => renderAllViews());
-            }
-        });
 
         // ========== 通用工具函式 ==========
         function convertToMOP(amount, currency) {
@@ -846,7 +839,6 @@ databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebase
                 if (currency === 'CNY') actualTarget.balanceCNY += delta;
             }
 
-            // 電子支付歸屬到對應銀行帳戶流水
             const recordChannelId = ch.type === 'epay' ? actualTarget.id : ch.id;
             const recordChannelName = ch.label || ch.name;
 
