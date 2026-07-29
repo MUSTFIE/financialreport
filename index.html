@@ -609,9 +609,26 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-title">
+      <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
         <span>當月紀錄明細</span>
-        <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+          <select id="filter-category" class="sort-select" onchange="renderApp()">
+            <option value="ALL">全部類別</option>
+          </select>
+          <select id="filter-account-monthly" class="sort-select" onchange="renderApp()">
+            <option value="ALL">全部支出戶口</option>
+            <option value="MPay">MPay</option>
+            <option value="BOC Pay">BOC Pay</option>
+            <option value="澳門螞蟻銀行">澳門螞蟻銀行</option>
+            <option value="澳門中國銀行">澳門中國銀行</option>
+            <option value="澳門工商銀行">澳門工商銀行</option>
+            <option value="澳門發展銀行">澳門發展銀行</option>
+            <option value="香港恒生銀行">香港恒生銀行</option>
+            <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
+            <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
+            <option value="DBS(信用卡)">DBS (信用卡)</option>
+            <option value="AE(信用卡)">AE (信用卡)</option>
+          </select>
           <select id="sort-order" class="sort-select">
             <option value="desc" selected>最新 ➔ 最舊</option>
             <option value="asc">最舊 ➔ 最新</option>
@@ -691,11 +708,7 @@
         <span class="label">銀行存款總額 (折合 MOP)</span>
       </div>
       <div class="total-balance" id="bank-total-balance">MOP$ 0</div>
-      <div class="dashboard-grid" style="grid-template-columns: repeat(4, 1fr);">
-        <div class="dash-item">
-          <span class="dash-label">銀行戶口數</span>
-          <span class="dash-val income">5 個</span>
-        </div>
+      <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr);">
         <div class="dash-item">
           <span class="dash-label">MOP 總額</span>
           <span class="dash-val highlight" id="bank-total-mop">MOP$ 0</span>
@@ -849,6 +862,12 @@
         </div>
         <input type="text" id="asset-deduct-note" placeholder="扣減備註 (例如：手續費、減值等)">
         <button type="button" class="btn-submit" style="background: var(--asset);" onclick="executeGlobalAssetDeduct()">確認扣減總資產</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 已輸入的快速總資產扣減清單</div>
+      <div class="transaction-list" id="asset-deductions-list">
+        <div class="empty-state">尚無扣減紀錄</div>
       </div>
     </div>
     <div class="card">
@@ -1081,7 +1100,7 @@
         alert('請選擇帳戶與類別！');
         return;
       }
-      if (selectedCategoryValue === '其他') {
+      if (selectedCategoryValue === 'other' || selectedCategoryValue === '其他') {
         const customVal = customCategoryInput.value.trim();
         if (customVal) {
           finalCategory = `🏷️ ${customVal}`;
@@ -1226,6 +1245,7 @@
   function renderApp() {
     const records = loadRecords();
     renderCategoryGrid();
+    updateFilterCategoryDropdown(records);
     renderMonthlySection(records);
     populateYearDropdown(records);
     renderYearlySummary();
@@ -1234,10 +1254,38 @@
     renderAssetSection();
   }
 
+  function updateFilterCategoryDropdown(records) {
+    const filterCatSelect = document.getElementById('filter-category');
+    const currentVal = filterCatSelect.value;
+    const defaultCats = ['餐飲', '交通', '購物', '娛樂', '居住', '母嬰', '保險費', '學貸', '生活費', '薪資', '其他'];
+    const customCats = loadCustomCategories();
+    const setOfCats = new Set(defaultCats);
+    customCats.forEach(c => setOfCats.add(c));
+    records.forEach(r => {
+      if (r.category) {
+        let cleanCat = r.category.replace(/^[^\w\u4e00-\u9fa5]+/, '').trim();
+        if (cleanCat) setOfCats.add(cleanCat);
+        setOfCats.add(r.category);
+      }
+    });
+
+    let html = '<option value="ALL">全部類別</option>';
+    Array.from(setOfCats).sort().forEach(c => {
+      html += `<option value="${c}">${c}</option>`;
+    });
+    filterCatSelect.innerHTML = html;
+    if (currentVal && Array.from(setOfCats).includes(currentVal)) {
+      filterCatSelect.value = currentVal;
+    }
+  }
+
   function renderMonthlySection(records) {
     const listContainer = document.getElementById('transaction-list');
     const sortOrder = document.getElementById('sort-order').value;
     const selectedMonthVal = filterMonthInput.value;
+    const filterCatVal = document.getElementById('filter-category').value;
+    const filterAccVal = document.getElementById('filter-account-monthly').value;
+
     let filteredRecords = records;
     if (selectedMonthVal) {
       const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
@@ -1247,12 +1295,33 @@
         return iYear === sYear && iMonth === sMonth;
       });
     }
+
+    // 類別篩選
+    if (filterCatVal && filterCatVal !== 'ALL') {
+      filteredRecords = filteredRecords.filter(item => {
+        if (!item.category) return false;
+        let cleanCat = item.category.replace(/^[^\w\u4e00-\u9fa5]+/, '').trim();
+        return item.category === filterCatVal || cleanCat === filterCatVal;
+      });
+    }
+
+    // 支出戶口篩選
+    if (filterAccVal && filterAccVal !== 'ALL') {
+      filteredRecords = filteredRecords.filter(item => {
+        if (item.type === 'transfer') {
+          return item.fromAccount === filterAccVal || item.toAccount === filterAccVal || item.actualFromAccount === filterAccVal || item.actualToAccount === filterAccVal;
+        } else {
+          return item.account === filterAccVal || item.actualAccount === filterAccVal;
+        }
+      });
+    }
+
     const items = [...filteredRecords].sort((a, b) => {
       const dateA = new Date(a.date), dateB = new Date(b.date);
       return sortOrder === 'asc' ? (dateA - dateB || a.timestamp - b.timestamp) : (dateB - dateA || b.timestamp - a.timestamp);
     });
     if (items.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state">當月尚無任何紀錄</div>';
+      listContainer.innerHTML = '<div class="empty-state">當月尚無符合條件的紀錄</div>';
       document.getElementById('record-count').textContent = '0 筆';
     } else {
       let html = '';
@@ -1652,6 +1721,31 @@
     document.getElementById('asset-bank-val').textContent = `MOP$ ${Math.round(totalBankMop).toLocaleString()}`;
     document.getElementById('asset-mpf-val').textContent = `MOP$ ${Math.round(totalMpfMop).toLocaleString()}`;
     
+    // 渲染已輸入扣減清單
+    const deductionsListEl = document.getElementById('asset-deductions-list');
+    if (globalDeductions.length === 0) {
+      deductionsListEl.innerHTML = '<div class="empty-state">尚無扣減紀錄</div>';
+    } else {
+      let dedHtml = '';
+      globalDeductions.slice().reverse().forEach(d => {
+        dedHtml += `
+          <div class="item" style="border-left-color: var(--asset);">
+            <div class="item-info">
+              <div class="title">📉 扣減金額: ${d.currency} $${d.amount.toLocaleString()}</div>
+              <div class="sub"><span>📅 ${d.date}</span> ${d.note ? `<span>(${d.note})</span>` : ''}</div>
+            </div>
+            <div class="item-amount">
+              <div class="item-amount-row">
+                <span class="amount-text" style="color: var(--asset);">- ${d.currency} $${d.amount.toLocaleString()}</span>
+                <button class="btn-delete" onclick="deleteGlobalDeduction('${d.id}')">✕</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      deductionsListEl.innerHTML = dedHtml;
+    }
+
     let breakdownHtml = '';
     BANK_LIST.forEach(b => {
       let bMop = 0, currMap = calculatedBanks[b] || {};
@@ -1694,6 +1788,11 @@
     document.getElementById('asset-deduct-amt').value = '';
     document.getElementById('asset-deduct-note').value = '';
     alert('扣減成功！');
+  }
+
+  function deleteGlobalDeduction(id) {
+    const deductions = loadGlobalDeductions().filter(d => d.id !== id);
+    saveGlobalDeductions(deductions);
   }
 
   function exportJSONBackup() {
