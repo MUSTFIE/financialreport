@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>極簡雲端記帳本 (多手機實時同步版)</title>
+  <title>極簡雲端記帳本</title>
   <!-- 引入 Firebase SDK (Compat 版本，方便直接嵌入單一 HTML) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
@@ -35,16 +35,41 @@
       color: var(--text);
       display: flex;
       justify-content: center;
-      padding: 12px 8px 32px 8px;
+      padding: 12px 12px 32px 12px;
       min-height: 100vh;
     }
     .app-container {
       width: 100%;
-      max-width: 480px;
+      max-width: 480px; /* 手機預設寬度 */
       display: flex;
       flex-direction: column;
       gap: 12px;
+      transition: max-width 0.3s ease;
     }
+
+    /* 💻 電腦與平板螢幕響應式優化 (>= 768px) */
+    @media (min-width: 768px) {
+      body {
+        padding: 24px 16px 48px 16px;
+      }
+      .app-container {
+        max-width: 768px; /* 電腦版解禁擴寬 */
+      }
+      .nav-btn {
+        font-size: 14px;
+        padding: 12px 8px;
+      }
+      .dashboard .total-balance {
+        font-size: 32px;
+      }
+      /* 電腦版讓部分卡片或清單呈現兩欄對比，提升寬螢幕利用率 */
+      .desktop-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+    }
+
     /* 頂部頁籤選單（手機版更好按） */
     .nav-tabs {
       display: flex;
@@ -301,6 +326,11 @@
       gap: 6px;
       width: 100%;
     }
+    @media (min-width: 768px) {
+      .category-grid {
+        grid-template-columns: repeat(6, 1fr); /* 電腦版一行放6個類別圖示更整齊 */
+      }
+    }
     .cat-block {
       background: #F8FAFC;
       border: 1px solid var(--border);
@@ -314,6 +344,10 @@
       align-items: center;
       justify-content: center;
       gap: 3px;
+      transition: all 0.15s ease;
+    }
+    .cat-block:hover {
+      border-color: var(--primary);
     }
     .cat-block.active {
       background: var(--primary);
@@ -334,6 +368,10 @@
       font-weight: 600;
       font-size: 14px;
       cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-submit:hover {
+      background: var(--primary-dark);
     }
     .transaction-list {
       display: flex;
@@ -429,7 +467,7 @@
       margin-top: 6px;
       align-items: center;
     }
-    .bank-edit-row select { width: 80px; padding: 6px; font-size: 11px; }
+    .bank-edit-row select { width: 90px; padding: 6px; font-size: 11px; }
     .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 11px; }
     .btn-sm-save {
       background: var(--bank);
@@ -459,6 +497,10 @@
       cursor: pointer;
       font-weight: 600;
       text-align: center;
+      transition: background 0.2s;
+    }
+    .btn-sub-action:hover {
+      background: #CBD5E1;
     }
     .mpf-table {
       width: 100%;
@@ -491,6 +533,7 @@
   <div class="rate-badge">
     💱 匯率基準：1 HKD = 1.03 MOP ｜ 1 CNY = 1.13 MOP
   </div>
+
   <!-- 1. 月度記帳頁面 -->
   <div id="tab-monthly-content" class="tab-content active">
     <div class="dashboard">
@@ -517,97 +560,105 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">✏️ 新增記帳</div>
-      <form id="transaction-form" class="form-group">
-        <div class="type-toggle">
-          <button type="button" class="type-btn active" data-type="expense" id="btn-expense">支出</button>
-          <button type="button" class="type-btn" data-type="income" id="btn-income">收入</button>
-          <button type="button" class="type-btn" data-type="transfer" id="btn-transfer">轉帳</button>
-        </div>
-        <div class="input-row">
-          <input type="date" id="date" required>
-          <select id="currency" style="width: 110px;" required>
-            <option value="MOP" selected>MOP</option>
-            <option value="HKD">HKD</option>
-            <option value="CNY">CNY</option>
-          </select>
-        </div>
-        <div class="input-row">
-          <input type="number" id="amount" placeholder="金額" step="any" required>
-        </div>
-        <div class="input-row" id="row-single-account">
-          <select id="account" required onchange="checkAccountAutoBind()">
-            <option value="" disabled selected>選擇支付方式/戶口</option>
-            <optgroup label="電子支付">
-              <option value="MPay">MPay (扣澳門螞蟻)</option>
-              <option value="BOC Pay">BOC Pay (扣澳門中銀)</option>
-            </optgroup>
-            <optgroup label="銀行戶口">
-              <option value="澳門螞蟻銀行">澳門螞蟻銀行</option>
-              <option value="澳門中國銀行">澳門中國銀行</option>
-              <option value="澳門工商銀行">澳門工商銀行</option>
-              <option value="澳門發展銀行">澳門發展銀行</option>
-              <option value="香港恒生銀行">香港恒生銀行</option>
-            </optgroup>
-            <optgroup label="信用卡戶口">
-              <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
-              <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
-              <option value="DBS(信用卡)">DBS (信用卡)</option>
-              <option value="AE(信用卡)">AE (信用卡)</option>
-            </optgroup>
-          </select>
-        </div>
-        <div id="bind-tip-box" class="bind-tip"></div>
-        <div class="input-row" id="row-transfer-accounts" style="display: none;">
-          <select id="from-account">
-            <option value="" disabled selected>轉出戶口</option>
-            <option value="MPay">MPay</option>
-            <option value="BOC Pay">BOC Pay</option>
-            <option value="澳門螞蟻銀行">澳門螞蟻</option>
-            <option value="澳門中國銀行">澳門中銀</option>
-            <option value="澳門工商銀行">澳門工銀</option>
-            <option value="澳門發展銀行">澳門發展</option>
-            <option value="香港恒生銀行">香港恒生</option>
-          </select>
-          <select id="to-account">
-            <option value="" disabled selected>轉入戶口</option>
-            <option value="MPay">MPay</option>
-            <option value="BOC Pay">BOC Pay</option>
-            <option value="澳門螞蟻銀行">澳門螞蟻</option>
-            <option value="澳門中國銀行">澳門中銀</option>
-            <option value="澳門工商銀行">澳門工銀</option>
-            <option value="澳門發展銀行">澳門發展</option>
-            <option value="香港恒生銀行">香港恒生</option>
-          </select>
-        </div>
-        <div class="category-grid-container" id="row-category">
-          <span class="category-grid-label">選擇分類：</span>
-          <div class="category-grid" id="category-grid">
-            <div class="cat-block" data-value="餐飲"><span class="cat-icon">🍔</span><span class="cat-label">餐飲</span></div>
-            <div class="cat-block" data-value="交通"><span class="cat-icon">🚗</span><span class="cat-label">交通</span></div>
-            <div class="cat-block" data-value="購物"><span class="cat-icon">🛍️</span><span class="cat-label">購物</span></div>
-            <div class="cat-block" data-value="娛樂"><span class="cat-icon">🎮</span><span class="cat-label">娛樂</span></div>
-            <div class="cat-block" data-value="居住"><span class="cat-icon">🏠</span><span class="cat-label">居住</span></div>
-            <div class="cat-block" data-value="母嬰"><span class="cat-icon">👶</span><span class="cat-label">母嬰</span></div>
-            <div class="cat-block" data-value="保險費"><span class="cat-icon">🛡️</span><span class="cat-label">保險費</span></div>
-            <div class="cat-block" data-value="學貸"><span class="cat-icon">🎓</span><span class="cat-label">學貸</span></div>
-            <div class="cat-block" data-value="生活費"><span class="cat-icon">💵</span><span class="cat-label">生活費</span></div>
-            <div class="cat-block" data-value="薪資"><span class="cat-icon">💼</span><span class="cat-label">薪資</span></div>
-            <div class="cat-block" data-value="其他"><span class="cat-icon">🏷️</span><span class="cat-label">其他</span></div>
+
+    <!-- 電腦版排版區塊優化 -->
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">✏️ 新增記帳</div>
+        <form id="transaction-form" class="form-group">
+          <div class="type-toggle">
+            <button type="button" class="type-btn active" data-type="expense" id="btn-expense">支出</button>
+            <button type="button" class="type-btn" data-type="income" id="btn-income">收入</button>
+            <button type="button" class="type-btn" data-type="transfer" id="btn-transfer">轉帳</button>
+          </div>
+          <div class="input-row">
+            <input type="date" id="date" required>
+            <select id="currency" style="width: 110px;" required>
+              <option value="MOP" selected>MOP</option>
+              <option value="HKD">HKD</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <input type="number" id="amount" placeholder="金額" step="any" required>
+          </div>
+          <div class="input-row" id="row-single-account">
+            <select id="account" required onchange="checkAccountAutoBind()">
+              <option value="" disabled selected>選擇支付方式/戶口</option>
+              <optgroup label="電子支付">
+                <option value="MPay">MPay (扣澳門螞蟻)</option>
+                <option value="BOC Pay">BOC Pay (扣澳門中銀)</option>
+              </optgroup>
+              <optgroup label="銀行戶口">
+                <option value="澳門螞蟻銀行">澳門螞蟻銀行</option>
+                <option value="澳門中國銀行">澳門中國銀行</option>
+                <option value="澳門工商銀行">澳門工商銀行</option>
+                <option value="澳門發展銀行">澳門發展銀行</option>
+                <option value="香港恒生銀行">香港恒生銀行</option>
+              </optgroup>
+              <optgroup label="信用卡戶口">
+                <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
+                <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
+                <option value="DBS(信用卡)">DBS (信用卡)</option>
+                <option value="AE(信用卡)">AE (信用卡)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div id="bind-tip-box" class="bind-tip"></div>
+          <div class="input-row" id="row-transfer-accounts" style="display: none;">
+            <select id="from-account">
+              <option value="" disabled selected>轉出戶口</option>
+              <option value="MPay">MPay</option>
+              <option value="BOC Pay">BOC Pay</option>
+              <option value="澳門螞蟻銀行">澳門螞蟻</option>
+              <option value="澳門中國銀行">澳門中銀</option>
+              <option value="澳門工商銀行">澳門工銀</option>
+              <option value="澳門發展銀行">澳門發展</option>
+              <option value="香港恒生銀行">香港恒生</option>
+            </select>
+            <select id="to-account">
+              <option value="" disabled selected>轉入戶口</option>
+              <option value="MPay">MPay</option>
+              <option value="BOC Pay">BOC Pay</option>
+              <option value="澳門螞蟻銀行">澳門螞蟻</option>
+              <option value="澳門中國銀行">澳門中銀</option>
+              <option value="澳門工商銀行">澳門工銀</option>
+              <option value="澳門發展銀行">澳門發展</option>
+              <option value="香港恒生銀行">香港恒生</option>
+            </select>
+          </div>
+          <div class="category-grid-container" id="row-category">
+            <span class="category-grid-label">選擇分類：</span>
+            <div class="category-grid" id="category-grid">
+              <div class="cat-block" data-value="餐飲"><span class="cat-icon">🍔</span><span class="cat-label">餐飲</span></div>
+              <div class="cat-block" data-value="交通"><span class="cat-icon">🚗</span><span class="cat-label">交通</span></div>
+              <div class="cat-block" data-value="購物"><span class="cat-icon">🛍️</span><span class="cat-label">購物</span></div>
+              <div class="cat-block" data-value="娛樂"><span class="cat-icon">🎮</span><span class="cat-label">娛樂</span></div>
+              <div class="cat-block" data-value="居住"><span class="cat-icon">🏠</span><span class="cat-label">居住</span></div>
+              <div class="cat-block" data-value="母嬰"><span class="cat-icon">👶</span><span class="cat-label">母嬰</span></div>
+              <div class="cat-block" data-value="保險費"><span class="cat-icon">🛡️</span><span class="cat-label">保險費</span></div>
+              <div class="cat-block" data-value="學貸"><span class="cat-icon">🎓</span><span class="cat-label">學貸</span></div>
+              <div class="cat-block" data-value="生活費"><span class="cat-icon">💵</span><span class="cat-label">生活費</span></div>
+              <div class="cat-block" data-value="薪資"><span class="cat-icon">💼</span><span class="cat-label">薪資</span></div>
+              <div class="cat-block" data-value="其他"><span class="cat-icon">🏷️</span><span class="cat-label">其他</span></div>
+            </div>
+          </div>
+          <input type="text" id="custom-category-input" placeholder="請輸入自訂類別名稱">
+          <input type="text" id="note" placeholder="備註（可填）">
+          <button type="submit" class="btn-submit">儲存紀錄</button>
+        </form>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card">
+          <div class="card-title">📊 當月類別支出統計</div>
+          <div class="category-list" id="category-analysis-list">
+            <div class="empty-state">該月份尚無支出紀錄</div>
           </div>
         </div>
-        <input type="text" id="custom-category-input" placeholder="請輸入自訂類別名稱">
-        <input type="text" id="note" placeholder="備註（可填）">
-        <button type="submit" class="btn-submit">儲存紀錄</button>
-      </form>
-    </div>
-    <div class="card">
-      <div class="card-title">📊 當月類別支出統計</div>
-      <div class="category-list" id="category-analysis-list">
-        <div class="empty-state">該月份尚無支出紀錄</div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
         <span>當月紀錄明細</span>
@@ -646,6 +697,7 @@
       <input type="file" id="import-json-file" accept=".json" style="display: none;" onchange="importJSONBackup(event)">
     </div>
   </div>
+
   <!-- 2. 年度結算頁面 -->
   <div id="tab-yearly-content" class="tab-content">
     <div class="dashboard">
@@ -676,31 +728,34 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">📅 月份收支明細</div>
-      <div style="overflow-x: auto;">
-        <table class="mpf-table" id="yearly-months-table">
-          <thead>
-            <tr>
-              <th>月份</th>
-              <th>收入 (MOP)</th>
-              <th>支出 (MOP)</th>
-              <th>結餘 (MOP)</th>
-            </tr>
-          </thead>
-          <tbody id="yearly-months-tbody">
-            <tr><td colspan="4" class="empty-state">尚無數據</td></tr>
-          </tbody>
-        </table>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">📅 月份收支明細</div>
+        <div style="overflow-x: auto;">
+          <table class="mpf-table" id="yearly-months-table">
+            <thead>
+              <tr>
+                <th>月份</th>
+                <th>收入 (MOP)</th>
+                <th>支出 (MOP)</th>
+                <th>結餘 (MOP)</th>
+              </tr>
+            </thead>
+            <tbody id="yearly-months-tbody">
+              <tr><td colspan="4" class="empty-state">尚無數據</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🏆 全年支出分類 Top 統計</div>
-      <div class="category-list" id="yearly-category-analysis-list">
-        <div class="empty-state">該年度尚無支出紀錄</div>
+      <div class="card">
+        <div class="card-title">🏆 全年支出分類 Top 統計</div>
+        <div class="category-list" id="yearly-category-analysis-list">
+          <div class="empty-state">該年度尚無支出紀錄</div>
+        </div>
       </div>
     </div>
   </div>
+
   <!-- 3. 獨立銀行戶口與流水帳頁面 -->
   <div id="tab-bank-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #0284C7, #0369A1);">
@@ -723,33 +778,36 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">🏛️ 銀行戶口金額設定</div>
-      <div id="bank-accounts-editor-container"></div>
-    </div>
-    <div class="card">
-      <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
-        <span>📜 銀行專屬流水帳</span>
-        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-          <input type="month" id="bank-flow-month" class="sort-select" style="width: auto; padding: 4px;" onchange="renderBankFlowList()">
-          <select id="bank-flow-select" class="sort-select" onchange="renderBankFlowList()">
-            <option value="澳門螞蟻銀行">澳門螞蟻</option>
-            <option value="澳門中國銀行">澳門中銀</option>
-            <option value="澳門工商銀行">澳門工銀</option>
-            <option value="澳門發展銀行">澳門發展</option>
-            <option value="香港恒生銀行">香港恒生</option>
-          </select>
-          <select id="bank-flow-curr" class="sort-select" onchange="renderBankFlowList()">
-            <option value="ALL">全部幣種</option>
-            <option value="MOP">MOP</option>
-            <option value="HKD">HKD</option>
-            <option value="CNY">CNY</option>
-          </select>
-        </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">🏛️ 銀行戶口金額設定</div>
+        <div id="bank-accounts-editor-container"></div>
       </div>
-      <div class="transaction-list" id="bank-transaction-list"></div>
+      <div class="card">
+        <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
+          <span>📜 銀行專屬流水帳</span>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <input type="month" id="bank-flow-month" class="sort-select" style="width: auto; padding: 4px;" onchange="renderBankFlowList()">
+            <select id="bank-flow-select" class="sort-select" onchange="renderBankFlowList()">
+              <option value="澳門螞蟻銀行">澳門螞蟻</option>
+              <option value="澳門中國銀行">澳門中銀</option>
+              <option value="澳門工商銀行">澳門工銀</option>
+              <option value="澳門發展銀行">澳門發展</option>
+              <option value="香港恒生銀行">香港恒生</option>
+            </select>
+            <select id="bank-flow-curr" class="sort-select" onchange="renderBankFlowList()">
+              <option value="ALL">全部幣種</option>
+              <option value="MOP">MOP</option>
+              <option value="HKD">HKD</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </div>
+        </div>
+        <div class="transaction-list" id="bank-transaction-list"></div>
+      </div>
     </div>
   </div>
+
   <!-- 4. 強積金 (MPF) 頁面 -->
   <div id="tab-mpf-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
@@ -772,34 +830,36 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">🛡️ 新增 MPF 帳戶</div>
-      <div class="form-group">
-        <div class="bank-edit-row" style="margin-top: 0;">
-          <input type="text" id="new-mpf-acc-name" placeholder="帳戶名稱 (例: 宏利主戶口)">
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">🛡️ 新增 MPF 帳戶</div>
+        <div class="form-group">
+          <div class="bank-edit-row" style="margin-top: 0;">
+            <input type="text" id="new-mpf-acc-name" placeholder="帳戶名稱 (例: 宏利主戶口)">
+          </div>
+          <div class="bank-edit-row" style="margin-top: 4px;">
+            <input type="number" id="new-mpf-acc-balance" placeholder="初始總餘額 (HKD)" step="any">
+            <button type="button" class="btn-sm-save" style="background: #059669;" onclick="addMPFAccount()">新增帳戶</button>
+          </div>
         </div>
-        <div class="bank-edit-row" style="margin-top: 4px;">
-          <input type="number" id="new-mpf-acc-balance" placeholder="初始總餘額 (HKD)" step="any">
-          <button type="button" class="btn-sm-save" style="background: #059669;" onclick="addMPFAccount()">新增帳戶</button>
-        </div>
+        <div id="mpf-accounts-container" class="transaction-list" style="margin-top: 10px;"></div>
       </div>
-      <div id="mpf-accounts-container" class="transaction-list" style="margin-top: 10px;"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📝 登記月度結餘</div>
-      <form id="mpf-monthly-form" class="form-group" style="margin-bottom: 0;">
-        <div class="input-row">
-          <input type="month" id="mpf-rec-month" required>
-          <select id="mpf-rec-account" required>
-            <option value="" disabled selected>選擇 MPF 帳戶</option>
-          </select>
-        </div>
-        <div class="input-row">
-          <input type="number" id="mpf-rec-balance" placeholder="月末結餘 (HKD)" step="any" required>
-          <input type="number" id="mpf-rec-contrib" placeholder="供款 (可選)" step="any">
-        </div>
-        <button type="button" class="btn-submit" style="background: #059669;" onclick="saveMPFMonthlyRecord()">儲存月度結餘</button>
-      </form>
+      <div class="card">
+        <div class="card-title">📝 登記月度結餘</div>
+        <form id="mpf-monthly-form" class="form-group" style="margin-bottom: 0;">
+          <div class="input-row">
+            <input type="month" id="mpf-rec-month" required>
+            <select id="mpf-rec-account" required>
+              <option value="" disabled selected>選擇 MPF 帳戶</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <input type="number" id="mpf-rec-balance" placeholder="月末結餘 (HKD)" step="any" required>
+            <input type="number" id="mpf-rec-contrib" placeholder="供款 (可選)" step="any">
+          </div>
+          <button type="button" class="btn-submit" style="background: #059669;" onclick="saveMPFMonthlyRecord()">儲存月度結餘</button>
+        </form>
+      </div>
     </div>
     <div class="card">
       <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
@@ -827,6 +887,7 @@
       </div>
     </div>
   </div>
+
   <!-- 5. 總資產頁面 -->
   <div id="tab-asset-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #D97706, #B45309);">
@@ -849,37 +910,41 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">📉 快速總資產扣減</div>
-      <div class="form-group">
-        <div class="input-row">
-          <select id="asset-deduct-curr" style="width: 100px;">
-            <option value="MOP">MOP</option>
-            <option value="HKD">HKD</option>
-            <option value="CNY">CNY</option>
-          </select>
-          <input type="number" id="asset-deduct-amt" placeholder="輸入扣減金額" step="any">
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">📉 快速總資產扣減</div>
+        <div class="form-group">
+          <div class="input-row">
+            <select id="asset-deduct-curr" style="width: 100px;">
+              <option value="MOP">MOP</option>
+              <option value="HKD">HKD</option>
+              <option value="CNY">CNY</option>
+            </select>
+            <input type="number" id="asset-deduct-amt" placeholder="輸入扣減金額" step="any">
+          </div>
+          <input type="text" id="asset-deduct-note" placeholder="扣減備註 (例如：手續費、減值等)">
+          <button type="button" class="btn-submit" style="background: var(--asset);" onclick="executeGlobalAssetDeduct()">確認扣減總資產</button>
         </div>
-        <input type="text" id="asset-deduct-note" placeholder="扣減備註 (例如：手續費、減值等)">
-        <button type="button" class="btn-submit" style="background: var(--asset);" onclick="executeGlobalAssetDeduct()">確認扣減總資產</button>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 已輸入的快速總資產扣減清單</div>
+        <div class="transaction-list" id="asset-deductions-list">
+          <div class="empty-state">尚無扣減紀錄</div>
+        </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">📋 已輸入的快速總資產扣減清單</div>
-      <div class="transaction-list" id="asset-deductions-list">
-        <div class="empty-state">尚無扣減紀錄</div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">💎 資產明細分項清單</div>
+        <div class="category-list" id="asset-breakdown-list">
+          <div class="empty-state">載入資產明細中...</div>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">💎 資產明細分項清單</div>
-      <div class="category-list" id="asset-breakdown-list">
-        <div class="empty-state">載入資產明細中...</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">📈 綜合資產配置佔比</div>
-      <div class="category-list" id="asset-ratio-list">
-        <div class="empty-state">計算配置比例中...</div>
+      <div class="card">
+        <div class="card-title">📈 綜合資產配置佔比</div>
+        <div class="category-list" id="asset-ratio-list">
+          <div class="empty-state">計算配置比例中...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -887,7 +952,7 @@
 
 <script>
   // ==========================================
-  // TODO: 請替換成您自己的 Firebase 專案設定
+  // Firebase 專案設定
   // ==========================================
   const firebaseConfig = {
     apiKey: "AIzaSyDARQel_FE1owKu7vcwj5Vb2mQQPHbdJUg",
@@ -899,12 +964,10 @@
     appId: "1:95285914076:web:44f6058eedbabc858cc719"
   };
 
-  // 初始化 Firebase
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   const dbRef = db.ref('cloud_accounting_data');
 
-  // 雲端資料集中快取物件
   let cloudData = {
     records: [],
     bankBaseBalances: {
@@ -931,7 +994,6 @@
     return amount * (EXCHANGE_RATES[currency] || 1.0);
   }
 
-  // 數據讀取函數（從記憶體中的 cloudData 讀取）
   function loadRecords() { return cloudData.records || []; }
   function loadCustomCategories() { return cloudData.customCategories || []; }
   function loadBankBaseBalances() { return cloudData.bankBaseBalances; }
@@ -939,7 +1001,6 @@
   function loadMPFAccountsData() { return cloudData.mpfAccounts || []; }
   function loadMPFMonthlyRecordsData() { return cloudData.mpfMonthlyRecords || []; }
 
-  // 數據儲存並同步至 Firebase
   function syncToFirebase() {
     dbRef.set(cloudData).then(() => {
       const badge = document.getElementById('sync-status-badge');
@@ -1296,7 +1357,6 @@
       });
     }
 
-    // 類別篩選
     if (filterCatVal && filterCatVal !== 'ALL') {
       filteredRecords = filteredRecords.filter(item => {
         if (!item.category) return false;
@@ -1305,7 +1365,6 @@
       });
     }
 
-    // 支出戶口篩選
     if (filterAccVal && filterAccVal !== 'ALL') {
       filteredRecords = filteredRecords.filter(item => {
         if (item.type === 'transfer') {
@@ -1721,7 +1780,6 @@
     document.getElementById('asset-bank-val').textContent = `MOP$ ${Math.round(totalBankMop).toLocaleString()}`;
     document.getElementById('asset-mpf-val').textContent = `MOP$ ${Math.round(totalMpfMop).toLocaleString()}`;
     
-    // 渲染已輸入扣減清單
     const deductionsListEl = document.getElementById('asset-deductions-list');
     if (globalDeductions.length === 0) {
       deductionsListEl.innerHTML = '<div class="empty-state">尚無扣減紀錄</div>';
