@@ -1816,9 +1816,10 @@
     document.getElementById('asset-breakdown-list').innerHTML = breakdownHtml;
 
     let ratioHtml = '';
-    if (grandTotal > 0) {
-      const bankRatio = ((totalBankMop / grandTotal) * 100).toFixed(1);
-      const mpfRatio = ((totalMpfMop / grandTotal) * 100).toFixed(1);
+    const rawTotalAssets = totalBankMop + totalMpfMop; // 修正：以資產原始總和作為佔比分母
+    if (rawTotalAssets > 0) {
+      const bankRatio = ((totalBankMop / rawTotalAssets) * 100).toFixed(1);
+      const mpfRatio = ((totalMpfMop / rawTotalAssets) * 100).toFixed(1);
       ratioHtml += `
         <div class="cat-progress-item">
           <div class="cat-progress-info"><span>🏛️ 銀行存款總佔比</span><span>MOP$ ${Math.round(totalBankMop).toLocaleString()} (${bankRatio}%)</span></div>
