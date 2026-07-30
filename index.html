@@ -7,6 +7,8 @@
   <!-- 引入 Firebase SDK (Compat 版本，方便直接嵌入單一 HTML) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- 新增：引入 Firebase Auth SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <style>
     :root {
       --primary: #6366F1;
@@ -62,12 +64,50 @@
       .dashboard .total-balance {
         font-size: 32px;
       }
-      /* 電腦版讓部分卡片或清單呈現兩欄對比，提升寬螢幕利用率 */
       .desktop-grid-2 {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
       }
+    }
+
+    /* 登入控制列樣式 */
+    .auth-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .auth-user-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .btn-auth {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-auth:hover {
+      background: var(--primary-dark);
+    }
+    .btn-auth.logout {
+      background: #EF4444;
+    }
+    .btn-auth.logout:hover {
+      background: #DC2626;
     }
 
     /* 頂部頁籤選單（手機版更好按） */
@@ -98,7 +138,6 @@
       color: var(--primary);
       box-shadow: 0 2px 4px rgba(0,0,0,0.06);
     }
-    /* 頁面切換控制 */
     .tab-content {
       display: none;
       flex-direction: column;
@@ -107,7 +146,6 @@
     .tab-content.active {
       display: flex;
     }
-    /* 雲端同步狀態列 */
     .sync-status {
       text-align: center;
       font-size: 11px;
@@ -117,7 +155,6 @@
       border-radius: 8px;
       font-weight: 600;
     }
-    /* 匯率基準提示 */
     .rate-badge {
       text-align: center;
       font-size: 11px;
@@ -126,7 +163,6 @@
       padding: 6px 10px;
       border-radius: 8px;
     }
-    /* 儀表板 */
     .dashboard {
       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
@@ -205,7 +241,6 @@
     .dash-val.income { color: #A7F3D0; }
     .dash-val.expense { color: #FECACA; }
     .dash-val.highlight { color: #FDE047; }
-    /* 通用卡片 */
     .card {
       background: var(--card-bg);
       padding: 14px;
@@ -294,7 +329,7 @@
       padding: 10px 12px;
       border: 1px solid var(--border);
       border-radius: 10px;
-      font-size: 14px; /* 防止 iOS 自動放大 */
+      font-size: 14px;
       outline: none;
       background-color: #FAFAFA;
     }
@@ -328,7 +363,7 @@
     }
     @media (min-width: 768px) {
       .category-grid {
-        grid-template-columns: repeat(6, 1fr); /* 電腦版一行放6個類別圖示更整齊 */
+        grid-template-columns: repeat(6, 1fr);
       }
     }
     .cat-block {
@@ -520,6 +555,16 @@
 </head>
 <body>
 <div class="app-container">
+  <!-- 新增：Google 登入狀態列 -->
+  <div class="auth-bar" id="auth-bar">
+    <div class="auth-user-info" id="auth-user-info">
+      <span>🔒 請登入以同步個人雲端資料</span>
+    </div>
+    <div id="auth-action-container">
+      <button type="button" class="btn-auth" onclick="loginWithGoogle()">Google 登入</button>
+    </div>
+  </div>
+
   <div class="nav-tabs">
     <button class="nav-btn active" id="btn-tab-monthly" onclick="switchTab('monthly')">📅 月度</button>
     <button class="nav-btn" id="btn-tab-yearly" onclick="switchTab('yearly')">📊 年度</button>
@@ -528,7 +573,7 @@
     <button class="nav-btn" id="btn-tab-asset" onclick="switchTab('asset')">💎 總資產</button>
   </div>
   <div class="sync-status" id="sync-status-badge">
-    ☁️ 正在連線至 Firebase 雲端...
+    ☁️ 等待 Firebase 登入驗證...
   </div>
   <div class="rate-badge">
     💱 匯率基準：1 HKD = 1.03 MOP ｜ 1 CNY = 1.13 MOP
@@ -966,7 +1011,10 @@
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
-  const dbRef = db.ref('cloud_accounting_data');
+  const auth = firebase.auth();
+
+  let dbRef = null;
+  let dbListener = null;
 
   let cloudData = {
     records: [],
@@ -990,6 +1038,78 @@
   const BINDING_MAP = { 'MPay': '澳門螞蟻銀行', 'BOC Pay': '澳門中國銀行' };
   const BANK_LIST = ['澳門螞蟻銀行', '澳門中國銀行', '澳門工商銀行', '澳門發展銀行', '香港恒生銀行'];
 
+  // ==========================================
+  // Firebase Auth 登入與狀態監聽
+  // ==========================================
+  function loginWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch((error) => {
+      console.error("登入失敗: ", error);
+      alert("Google 登入失敗：" + error.message);
+    });
+  }
+
+  function logout() {
+    auth.signOut().then(() => {
+      window.location.reload();
+    }).catch((error) => {
+      console.error("登出失敗: ", error);
+    });
+  }
+
+  auth.onAuthStateChanged((user) => {
+    const userInfoEl = document.getElementById('auth-user-info');
+    const actionContainerEl = document.getElementById('auth-action-container');
+    const syncBadge = document.getElementById('sync-status-badge');
+
+    // 移除舊的即時資料庫監聽器（避免切換帳戶時資料殘留）
+    if (dbRef && dbListener) {
+      dbRef.off('value', dbListener);
+    }
+
+    if (user) {
+      // 已登入：顯示使用者頭像或名稱，並將資料路徑對應到該使用者的專屬資料夾
+      userInfoEl.innerHTML = `
+        <img src="${user.photoURL || ''}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">
+        <span>${user.displayName || user.email}</span>
+      `;
+      actionContainerEl.innerHTML = `<button type="button" class="btn-auth logout" onclick="logout()">登出</button>`;
+      
+      // 多人隔離：使用使用者 UID 作為 Realtime Database 路徑
+      dbRef = db.ref(`users/${user.uid}/cloud_accounting_data`);
+      
+      syncBadge.textContent = '☁️ 正在連線至你的 Firebase 雲端...';
+
+      // 掛載監聽器
+      dbListener = dbRef.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+          cloudData = val;
+        } else {
+          syncToFirebase();
+        }
+        renderApp();
+      }, (error) => {
+        console.error("Firebase Sync Error: ", error);
+        syncBadge.textContent = '⚠️ 雲端即時連線異常';
+      });
+
+    } else {
+      // 未登入
+      userInfoEl.innerHTML = `<span>🔒 請登入以同步個人雲端資料</span>`;
+      actionContainerEl.innerHTML = `<button type="button" class="btn-auth" onclick="loginWithGoogle()">Google 登入</button>`;
+      syncBadge.textContent = '⚠️ 尚未登入，資料僅暫存於本地';
+      
+      // 未登入時可以給予一個預設共用或空白資料檢視
+      dbRef = db.ref('cloud_accounting_data_guest');
+      dbRef.once('value').then((snapshot) => {
+        const val = snapshot.val();
+        if (val) cloudData = val;
+        renderApp();
+      });
+    }
+  });
+
   function convertToMOP(amount, currency) {
     return amount * (EXCHANGE_RATES[currency] || 1.0);
   }
@@ -1002,6 +1122,7 @@
   function loadMPFMonthlyRecordsData() { return cloudData.mpfMonthlyRecords || []; }
 
   function syncToFirebase() {
+    if (!dbRef) return;
     dbRef.set(cloudData).then(() => {
       const badge = document.getElementById('sync-status-badge');
       badge.textContent = '☁️ 雲端同步完成 (實時多機互聯)';
@@ -1816,7 +1937,7 @@
     document.getElementById('asset-breakdown-list').innerHTML = breakdownHtml;
 
     let ratioHtml = '';
-    const rawTotalAssets = totalBankMop + totalMpfMop; // 修正：以資產原始總和作為佔比分母
+    const rawTotalAssets = totalBankMop + totalMpfMop;
     if (rawTotalAssets > 0) {
       const bankRatio = ((totalBankMop / rawTotalAssets) * 100).toFixed(1);
       const mpfRatio = ((totalMpfMop / rawTotalAssets) * 100).toFixed(1);
@@ -1884,19 +2005,6 @@
     };
     reader.readAsText(file);
   }
-
-  dbRef.on('value', (snapshot) => {
-    const val = snapshot.val();
-    if (val) {
-      cloudData = val;
-    } else {
-      syncToFirebase();
-    }
-    renderApp();
-  }, (error) => {
-    console.error("Firebase Sync Error: ", error);
-    document.getElementById('sync-status-badge').textContent = '⚠️ 雲端即時連線異常';
-  });
 </script>
 </body>
 </html>
