@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>極簡雲端記帳本</title>
+  <!-- 引入 Firebase SDK (Compat 版本) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --primary: #6366F1;
+      --primary-dark: #4F46E5;
+      --income: #10B981;
+      --expense: #EF4444;
+      --transfer: #8B5CF6;
+      --bank: #0284C7;
+      --mpf: #059669;
+      --asset: #D97706;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #0F172A;
+      --muted: #64748B;
+      --border: #E2E8F0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 12px 12px 32px 12px;
+      min-height: 100vh;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: max-width 0.3s ease;
+    }
+    @media (min-width: 768px) {
+      body { padding: 24px 16px 48px 16px; }
+      .app-container { max-width: 768px; }
+      .nav-btn { font-size: 13px; padding: 10px 4px; }
+      .dashboard .total-balance { font-size: 32px; }
+      .desktop-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+    .auth-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--card-bg); padding: 8px 12px; border-radius: 12px;
+      border: 1px solid var(--border); font-size: 12px;
+    }
+    .auth-user-info { display: flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; }
+    .btn-auth {
+      background: var(--primary); color: white; border: none; padding: 6px 12px;
+      border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
+    }
+    .btn-auth.logout { background: #EF4444; }
+    .nav-tabs {
+      display: flex; background: #E2E8F0; padding: 4px; border-radius: 12px; gap: 2px; overflow-x: auto;
+    }
+    .nav-btn {
+      flex: 1; border: none; padding: 10px 2px; border-radius: 9px; font-weight: 700;
+      font-size: 11px; cursor: pointer; background: transparent; color: var(--muted); text-align: center; white-space: nowrap;
+    }
+    .nav-btn.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+    .tab-content { display: none; flex-direction: column; gap: 12px; }
+    .tab-content.active { display: flex; }
+    .sync-status { text-align: center; font-size: 11px; color: #065F46; background: #D1FAE5; padding: 6px 10px; border-radius: 8px; font-weight: 600; }
+    .rate-badge { text-align: center; font-size: 11px; color: #4338CA; background: #E0E7FF; padding: 6px 10px; border-radius: 8px; }
+    .dashboard {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white; padding: 16px; border-radius: 16px; box-shadow: 0 8px 12px -3px rgba(99, 102, 241, 0.2);
+    }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .dashboard .label { font-size: 12px; opacity: 0.9; }
+    .controls-group { display: flex; gap: 6px; align-items: center; }
+    .picker-dashboard { background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; padding: 4px 6px; font-size: 11px; outline: none; cursor: pointer; }
+    .picker-dashboard option { color: var(--text); background: white; }
+    .btn-export { background: rgba(255, 255, 255, 0.25); color: white; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; }
+    .dashboard .total-balance { font-size: 26px; font-weight: 700; margin: 4px 0 12px 0; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 10px; }
+    .dashboard-grid-4 { grid-template-columns: repeat(2, 1fr); row-gap: 10px; }
+    .dash-item { display: flex; flex-direction: column; gap: 2px; }
+    .dash-label { font-size: 10px; opacity: 0.85; }
+    .dash-val { font-size: 13px; font-weight: 700; }
+    .dash-val.income { color: #A7F3D0; }
+    .dash-val.expense { color: #FECACA; }
+    .dash-val.highlight { color: #FDE047; }
+    .card { background: var(--card-bg); padding: 14px; border-radius: 14px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
+    .card-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .sort-select { background: #F1F5F9; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 11px; outline: none; }
+    .category-list { display: flex; flex-direction: column; gap: 8px; }
+    .cat-progress-item { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+    .cat-progress-info { display: flex; justify-content: space-between; font-weight: 600; }
+    .cat-progress-bar-bg { background: #F1F5F9; border-radius: 4px; height: 6px; width: 100%; overflow: hidden; }
+    .cat-progress-bar-fill { background: var(--primary); height: 100%; border-radius: 4px; }
+    .form-group { display: flex; flex-direction: column; gap: 10px; }
+    .type-toggle { display: flex; background: #F1F5F9; padding: 3px; border-radius: 10px; gap: 2px; }
+    .type-btn { flex: 1; border: none; padding: 8px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; background: transparent; color: var(--muted); }
+    .type-btn.active[data-type="expense"] { background: var(--expense); color: white; }
+    .type-btn.active[data-type="income"] { background: var(--income); color: white; }
+    .type-btn.active[data-type="transfer"] { background: var(--transfer); color: white; }
+    .input-row { display: flex; gap: 6px; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; background-color: #FAFAFA; }
+    input:focus, select:focus { border-color: var(--primary); background-color: #FFF; }
+    .bind-tip { font-size: 11px; color: #0284C7; background: #E0F2FE; padding: 6px 10px; border-radius: 6px; display: none; }
+    .category-grid-container { display: flex; flex-direction: column; gap: 4px; }
+    .category-grid-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+    @media (min-width: 768px) { .category-grid { grid-template-columns: repeat(6, 1fr); } }
+    .cat-block { position: relative; background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 8px 2px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+    .cat-block.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: 700; }
+    .cat-block .cat-icon { font-size: 16px; line-height: 1; }
+    .cat-block .cat-label { font-size: 10px; }
+    .cat-delete-badge { position: absolute; top: -4px; right: -4px; background: #EF4444; color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    #custom-category-input { display: none; }
+    .btn-submit { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; }
+    .transaction-list { display: flex; flex-direction: column; gap: 8px; }
+    .item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: #F8FAFC; border-left: 4px solid var(--muted); }
+    .item.income { border-left-color: var(--income); }
+    .item.expense { border-left-color: var(--expense); }
+    .item.transfer { border-left-color: var(--transfer); }
+    .item-info .title { font-weight: 600; font-size: 13px; }
+    .item-info .sub { font-size: 10px; color: var(--muted); margin-top: 2px; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .tag { background: #E2E8F0; padding: 1px 4px; border-radius: 4px; }
+    .tag.bank-deduct { background: #E0F2FE; color: #0369A1; font-weight: 600; }
+    .tag.transfer-tag { background: #EDE9FE; color: #6D28D9; font-weight: 600; }
+    .item-amount { font-weight: 700; font-size: 13px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+    .item-amount-row { display: flex; align-items: center; gap: 6px; }
+    .item.income .amount-text { color: var(--income); }
+    .item.expense .amount-text { color: var(--expense); }
+    .item.transfer .amount-text { color: var(--transfer); }
+    .mop-converted { font-size: 10px; color: var(--muted); font-weight: 400; }
+    .btn-delete { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+    .empty-state { text-align: center; color: var(--muted); padding: 12px 0; font-size: 12px; }
+    .bank-card { background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .bank-card-title { font-size: 13px; font-weight: 700; color: #0369A1; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .bank-currency-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .curr-item { background: #FFF; padding: 6px 8px; border-radius: 6px; border: 1px solid #E2E8F0; display: flex; flex-direction: column; }
+    .curr-name { font-size: 10px; color: var(--muted); }
+    .curr-val { font-size: 13px; font-weight: 700; color: var(--text); }
+    .bank-edit-row { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+    .bank-edit-row select { width: auto; padding: 6px; font-size: 11px; }
+    .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 11px; }
+    .btn-sm-save { background: var(--bank); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .backup-tools { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; }
+    .btn-sub-action { flex: 1; padding: 8px; font-size: 11px; background: #E2E8F0; color: var(--text); border: none; border-radius: 8px; cursor: pointer; font-weight: 600; text-align: center; }
+    .mpf-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    .mpf-table th, .mpf-table td { border: 1px solid var(--border); padding: 6px 4px; text-align: center; }
+    .mpf-table th { background: #F1F5F9; font-weight: 700; color: var(--muted); }
+    .mpf-diff-positive { color: var(--income); font-weight: 700; }
+    .mpf-diff-negative { color: var(--expense); font-weight: 700; }
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <div class="auth-bar" id="auth-bar">
+    <div class="auth-user-info" id="auth-user-info"><span>🔒 請登入以同步個人雲端資料</span></div>
+    <div id="auth-action-container"><button type="button" class="btn-auth" onclick="loginWithGoogle()">Google 登入</button></div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-btn active" id="btn-tab-monthly" onclick="switchTab('monthly')">📅 月度</button>
+    <button class="nav-btn" id="btn-tab-yearly" onclick="switchTab('yearly')">📊 年度</button>
+    <button class="nav-btn" id="btn-tab-accounts" onclick="switchTab('accounts')">⚙️ 帳戶管理</button>
+    <button class="nav-btn" id="btn-tab-bank" onclick="switchTab('bank')">🏛️ 銀行</button>
+    <button class="nav-btn" id="btn-tab-mpf" onclick="switchTab('mpf')">🛡️ 強積金</button>
+    <button class="nav-btn" id="btn-tab-asset" onclick="switchTab('asset')">💎 總資產</button>
+  </div>
+  <div class="sync-status" id="sync-status-badge">☁️ 等待 Firebase 登入驗證...</div>
+  <div class="rate-badge">💱 匯率基準：1 HKD = 1.03 MOP ｜ 1 CNY = 1.13 MOP</div>
+
+  <!-- 1. 月度記帳頁面 -->
+  <div id="tab-monthly-content" class="tab-content active">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <span class="label">當月總結餘 (MOP)</span>
+        <div class="controls-group">
+          <input type="month" id="filter-month" class="picker-dashboard" onchange="renderApp()">
+          <button type="button" class="btn-export" onclick="exportMonthCSV()">📥 CSV</button>
+        </div>
+      </div>
+      <div class="total-balance" id="month-net-balance">MOP$ 0</div>
+      <div class="dashboard-grid">
+        <div class="dash-item"><span class="dash-label">當月總收入</span><span class="dash-val income" id="month-income">+MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">當月總支出</span><span class="dash-val expense" id="month-expense">-MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">日平均支出</span><span class="dash-val" id="month-daily-avg">MOP$ 0/日</span></div>
+      </div>
+    </div>
+
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">✏️ 新增記帳</div>
+        <form id="transaction-form" class="form-group">
+          <div class="type-toggle">
+            <button type="button" class="type-btn active" data-type="expense" id="btn-expense">支出</button>
+            <button type="button" class="type-btn" data-type="income" id="btn-income">收入</button>
+            <button type="button" class="type-btn" data-type="transfer" id="btn-transfer">轉帳</button>
+          </div>
+          <div class="input-row">
+            <input type="date" id="date" required>
+            <select id="currency" style="width: 110px;" required>
+              <option value="MOP" selected>MOP</option>
+              <option value="HKD">HKD</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <input type="number" id="amount" placeholder="金額" step="any" required>
+          </div>
+          <div class="input-row" id="row-single-account">
+            <select id="account" required onchange="checkAccountAutoBind()">
+              <option value="" disabled selected>選擇支付方式/戶口</option>
+            </select>
+          </div>
+          <div id="bind-tip-box" class="bind-tip"></div>
+          <div class="input-row" id="row-transfer-accounts" style="display: none;">
+            <select id="from-account"><option value="" disabled selected>轉出戶口</option></select>
+            <select id="to-account"><option value="" disabled selected>轉入戶口</option></select>
+          </div>
+          <div class="category-grid-container" id="row-category">
+            <span class="category-grid-label">選擇分類：</span>
+            <div class="category-grid" id="category-grid"></div>
+          </div>
+          <input type="text" id="custom-category-input" placeholder="請輸入自訂類別名稱">
+          <input type="text" id="note" placeholder="備註（可填）">
+          <button type="submit" class="btn-submit">儲存紀錄</button>
+        </form>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card">
+          <div class="card-title">📊 當月類別支出統計</div>
+          <div class="category-list" id="category-analysis-list">
+            <div class="empty-state">該月份尚無支出紀錄</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
+        <span>當月紀錄明細</span>
+        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+          <select id="filter-category" class="sort-select" onchange="renderApp()"><option value="ALL">全部類別</option></select>
+          <select id="filter-account-monthly" class="sort-select" onchange="renderApp()"><option value="ALL">全部支出戶口</option></select>
+          <select id="sort-order" class="sort-select" onchange="renderApp()">
+            <option value="desc" selected>最新 ➔ 最舊</option>
+            <option value="asc">最舊 ➔ 最新</option>
+          </select>
+          <span style="font-size: 11px; color: var(--muted);" id="record-count">0 筆</span>
+        </div>
+      </div>
+      <div class="transaction-list" id="transaction-list"><div class="empty-state">尚無紀錄</div></div>
+    </div>
+    <div class="backup-tools">
+      <button type="button" class="btn-sub-action" onclick="exportJSONBackup()">💾 匯出備份</button>
+      <button type="button" class="btn-sub-action" onclick="document.getElementById('import-json-file').click()">📂 匯入備份</button>
+      <input type="file" id="import-json-file" accept=".json" style="display: none;" onchange="importJSONBackup(event)">
+    </div>
+  </div>
+
+  <!-- 2. 年度結算頁面 -->
+  <div id="tab-yearly-content" class="tab-content">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <span class="label">年度總結餘 (MOP)</span>
+        <div class="controls-group">
+          <select id="filter-year" class="picker-dashboard" onchange="renderYearlySummary()"></select>
+          <button type="button" class="btn-export" onclick="exportYearCSV()">📥 CSV</button>
+        </div>
+      </div>
+      <div class="total-balance" id="year-net-balance">MOP$ 0</div>
+      <div class="dashboard-grid dashboard-grid-4">
+        <div class="dash-item"><span class="dash-label">年度總收入</span><span class="dash-val income" id="year-income">+MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">年度總支出</span><span class="dash-val expense" id="year-expense">-MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">平均月支出</span><span class="dash-val" id="year-monthly-avg-expense">MOP$ 0/月</span></div>
+        <div class="dash-item"><span class="dash-label">年度總儲蓄率</span><span class="dash-val highlight" id="year-savings-rate">0%</span></div>
+      </div>
+    </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">📅 月份收支明細</div>
+        <div style="overflow-x: auto;">
+          <table class="mpf-table" id="yearly-months-table">
+            <thead><tr><th>月份</th><th>收入 (MOP)</th><th>支出 (MOP)</th><th>結餘 (MOP)</th></tr></thead>
+            <tbody id="yearly-months-tbody"><tr><td colspan="4" class="empty-state">尚無數據</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏆 全年支出分類 Top 統計</div>
+        <div class="category-list" id="yearly-category-analysis-list"><div class="empty-state">該年度尚無支出紀錄</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 帳戶管理頁面 -->
+  <div id="tab-accounts-content" class="tab-content">
+    <div class="card">
+      <div class="card-title">➕ 新增帳戶 / 電子支付 / 信用卡</div>
+      <form id="account-add-form" class="form-group" onsubmit="addNewAccount(event)">
+        <div class="input-row">
+          <select id="new-acc-type" required onchange="toggleLinkedBankSelect()">
+            <option value="" disabled selected>選擇帳戶類型</option>
+            <option value="bank">銀行戶口</option>
+            <option value="ebuy">電子支付</option>
+            <option value="credit">信用卡戶口</option>
+          </select>
+          <input type="text" id="new-acc-name" placeholder="帳戶名稱 (例: MPay, 恆生銀行)" required>
+        </div>
+        <div class="input-row" id="row-linked-bank" style="display: none;">
+          <select id="new-linked-bank">
+            <option value="" disabled selected>選擇扣帳銀行戶口</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-submit">新增帳戶</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 現有帳戶清單</div>
+      <div class="transaction-list" id="accounts-manage-list">
+        <div class="empty-state">尚無自訂帳戶</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 獨立銀行戶口與流水帳頁面 -->
+  <div id="tab-bank-content" class="tab-content">
+    <div class="dashboard" style="background: linear-gradient(135deg, #0284C7, #0369A1);">
+      <div class="dashboard-header"><span class="label">銀行存款總額 (折合 MOP)</span></div>
+      <div class="total-balance" id="bank-total-balance">MOP$ 0</div>
+      <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="dash-item"><span class="dash-label">MOP 總額</span><span class="dash-val highlight" id="bank-total-mop">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">HKD 總額</span><span class="dash-val highlight" id="bank-total-hkd">HK$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">CNY 總額</span><span class="dash-val highlight" id="bank-total-cny">CN¥ 0</span></div>
+      </div>
+    </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">🏛️ 銀行戶口金額調整 (初始/增減)</div>
+        <div id="bank-accounts-editor-container"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
+          <span>📜 銀行專屬流水帳</span>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <input type="month" id="bank-flow-month" class="sort-select" style="width: auto; padding: 4px;" onchange="renderBankFlowList()">
+            <select id="bank-flow-select" class="sort-select" onchange="renderBankFlowList()"></select>
+            <select id="bank-flow-curr" class="sort-select" onchange="renderBankFlowList()">
+              <option value="ALL">全部幣種</option><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option>
+            </select>
+          </div>
+        </div>
+        <div class="transaction-list" id="bank-transaction-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 強積金 (MPF) 頁面 -->
+  <div id="tab-mpf-content" class="tab-content">
+    <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
+      <div class="dashboard-header"><span class="label">強積金總餘額 (HKD)</span></div>
+      <div class="total-balance" id="mpf-total-balance">HK$ 0</div>
+      <div class="dashboard-grid">
+        <div class="dash-item"><span class="dash-label">戶口總數</span><span class="dash-val income" id="mpf-account-count">0 個</span></div>
+        <div class="dash-item"><span class="dash-label">最近變動額</span><span class="dash-val highlight" id="mpf-month-growth">HK$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">記錄月份</span><span class="dash-val" id="mpf-latest-month-label">-</span></div>
+      </div>
+    </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">🛡️ 新增 MPF 帳戶</div>
+        <div class="form-group">
+          <div class="bank-edit-row" style="margin-top: 0;"><input type="text" id="new-mpf-acc-name" placeholder="帳戶名稱 (例: 宏利主戶口)"></div>
+          <div class="bank-edit-row" style="margin-top: 4px;">
+            <input type="number" id="new-mpf-acc-balance" placeholder="初始總餘額 (HKD)" step="any">
+            <button type="button" class="btn-sm-save" style="background: #059669;" onclick="addMPFAccount()">新增帳戶</button>
+          </div>
+        </div>
+        <div id="mpf-accounts-container" class="transaction-list" style="margin-top: 10px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📝 登記月度結餘</div>
+        <form id="mpf-monthly-form" class="form-group" style="margin-bottom: 0;">
+          <div class="input-row">
+            <input type="month" id="mpf-rec-month" required>
+            <select id="mpf-rec-account" required><option value="" disabled selected>選擇 MPF 帳戶</option></select>
+          </div>
+          <div class="input-row">
+            <input type="number" id="mpf-rec-balance" placeholder="月末結餘 (HKD)" step="any" required>
+            <input type="number" id="mpf-rec-contrib" placeholder="供款 (可選)" step="any">
+          </div>
+          <button type="button" class="btn-submit" style="background: #059669;" onclick="saveMPFMonthlyRecord()">儲存月度結餘</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
+        <span>📊 戶口每月漲跌變動</span>
+        <select id="mpf-filter-account" class="sort-select" onchange="renderMPFSection()"><option value="ALL">全部總覽</option></select>
+      </div>
+      <div style="overflow-x: auto;">
+        <table class="mpf-table" id="mpf-comparison-table">
+          <thead><tr><th>月份</th><th>戶口</th><th>結餘 (HKD)</th><th>供款</th><th>月漲跌變動</th><th>操作</th></tr></thead>
+          <tbody id="mpf-comparison-tbody"><tr><td colspan="6" class="empty-state">尚無變動紀錄</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 總資產頁面 -->
+  <div id="tab-asset-content" class="tab-content">
+    <div class="dashboard" style="background: linear-gradient(135deg, #D97706, #B45309);">
+      <div class="dashboard-header"><span class="label">淨總資產總額 (折合 MOP)</span></div>
+      <div class="total-balance" id="asset-grand-total">MOP$ 0</div>
+      <div class="dashboard-grid">
+        <div class="dash-item"><span class="dash-label">銀行存款總計</span><span class="dash-val income" id="asset-bank-val">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">強積金總計</span><span class="dash-val highlight" id="asset-mpf-val">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">資產板塊</span><span class="dash-val">2 大板塊</span></div>
+      </div>
+    </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">📉 快速總資產扣減</div>
+        <div class="form-group">
+          <div class="input-row">
+            <select id="asset-deduct-curr" style="width: 100px;"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
+            <input type="number" id="asset-deduct-amt" placeholder="輸入扣減金額" step="any">
+          </div>
+          <input type="text" id="asset-deduct-note" placeholder="扣減備註">
+          <button type="button" class="btn-submit" style="background: var(--asset);" onclick="executeGlobalAssetDeduct()">確認扣減總資產</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 已輸入的快速總資產扣減清單</div>
+        <div class="transaction-list" id="asset-deductions-list"><div class="empty-state">尚無扣減紀錄</div></div>
+      </div>
+    </div>
+    <div class="desktop-grid-2">
+      <div class="card">
+        <div class="card-title">💎 資產明細分項清單</div>
+        <div class="category-list" id="asset-breakdown-list"><div class="empty-state">載入資產明細中...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📈 綜合資產配置佔比</div>
+        <div class="category-list" id="asset-ratio-list"><div class="empty-state">計算配置比例中...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDARQel_FE1owKu7vcwj5Vb2mQQPHbdJUg",
+    authDomain: "budget-tracker-f6987.firebaseapp.com",
+    databaseURL: "https://budget-tracker-f6987-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: "budget-tracker-f6987",
+    storageBucket: "budget-tracker-f6987.firebasestorage.app",
+    messagingSenderId: "95285914076",
+    appId: "1:95285914076:web:44f6058eedbabc858cc719"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const auth = firebase.auth();
+
+  let dbRef = null;
+  let dbListener = null;
+
+  let cloudData = {
+    records: [],
+    userAccounts: [],
+    bankBaseBalances: {},
+    globalDeductions: [],
+    mpfAccounts: [],
+    mpfMonthlyRecords: [],
+    customCategories: []
+  };
+
+  const EXCHANGE_RATES = { MOP: 1.0, HKD: 1.03, CNY: 1.13 };
+
+  function loginWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch((error) => { alert("Google 登入失敗：" + error.message); });
+  }
+
+  function logout() {
+    auth.signOut().then(() => { window.location.reload(); });
+  }
+
+  auth.onAuthStateChanged((user) => {
+    const userInfoEl = document.getElementById('auth-user-info');
+    const actionContainerEl = document.getElementById('auth-action-container');
+    const syncBadge = document.getElementById('sync-status-badge');
+
+    if (dbRef && dbListener) dbRef.off('value', dbListener);
+
+    if (user) {
+      userInfoEl.innerHTML = `<img src="${user.photoURL || ''}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'"><span>${user.displayName || user.email}</span>`;
+      actionContainerEl.innerHTML = `<button type="button" class="btn-auth logout" onclick="logout()">登出</button>`;
+      dbRef = db.ref(`users/${user.uid}/cloud_accounting_data`);
+      syncBadge.textContent = '☁️ 正在連線至你的 Firebase 雲端...';
+
+      dbListener = dbRef.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+          cloudData = val;
+          if (!cloudData.userAccounts) cloudData.userAccounts = [];
+          if (!cloudData.bankBaseBalances) cloudData.bankBaseBalances = {};
+          if (!cloudData.customCategories) cloudData.customCategories = [];
+        } else {
+          syncToFirebase();
+        }
+        renderApp();
+      }, (error) => { syncBadge.textContent = '⚠️ 雲端即時連線異常'; });
+    } else {
+      userInfoEl.innerHTML = `<span>🔒 請登入以同步個人雲端資料</span>`;
+      actionContainerEl.innerHTML = `<button type="button" class="btn-auth" onclick="loginWithGoogle()">Google 登入</button>`;
+      syncBadge.textContent = '⚠️ 尚未登入，資料僅暫存於本地';
+      dbRef = db.ref('cloud_accounting_data_guest');
+      dbRef.once('value').then((snapshot) => {
+        const val = snapshot.val();
+        if (val) cloudData = val;
+        renderApp();
+      });
+    }
+  });
+
+  function convertToMOP(amount, currency) { return amount * (EXCHANGE_RATES[currency] || 1.0); }
+  function loadRecords() { return cloudData.records || []; }
+  function loadUserAccounts() { return cloudData.userAccounts || []; }
+  function loadCustomCategories() { return cloudData.customCategories || []; }
+  function loadBankBaseBalances() { return cloudData.bankBaseBalances || {}; }
+  function loadGlobalDeductions() { return cloudData.globalDeductions || []; }
+  function loadMPFAccountsData() { return cloudData.mpfAccounts || []; }
+  function loadMPFMonthlyRecordsData() { return cloudData.mpfMonthlyRecords || []; }
+
+  function syncToFirebase() {
+    if (!dbRef) return;
+    dbRef.set(cloudData).then(() => {
+      const badge = document.getElementById('sync-status-badge');
+      badge.textContent = '☁️ 雲端同步完成';
+      badge.style.background = '#D1FAE5';
+      badge.style.color = '#065F46';
+    });
+  }
+
+  function saveRecords(records) { cloudData.records = records; syncToFirebase(); renderApp(); }
+  function saveUserAccounts(accounts) { cloudData.userAccounts = accounts; syncToFirebase(); }
+  function saveCustomCategories(cats) { cloudData.customCategories = cats; syncToFirebase(); renderCategoryGrid(); }
+  function saveBankBaseBalances(data) { cloudData.bankBaseBalances = data; syncToFirebase(); }
+  function saveGlobalDeductions(data) { cloudData.globalDeductions = data; syncToFirebase(); }
+  function saveMPFAccountsData(data) { cloudData.mpfAccounts = data; syncToFirebase(); }
+  function saveMPFMonthlyRecordsData(data) { cloudData.mpfMonthlyRecords = data; syncToFirebase(); }
+
+  function deleteCustomCategory(catName, e) {
+    e.stopPropagation();
+    if (!confirm(`確定要刪除自訂分類「${catName}」嗎？`)) return;
+    let customCats = loadCustomCategories().filter(c => c !== catName);
+    saveCustomCategories(customCats);
+    if (selectedCategoryValue === catName) {
+      selectedCategoryValue = '';
+    }
+    renderCategoryGrid();
+    updateFilterCategoryDropdown(loadRecords());
+  }
+
+  function getActualAccount(accountName) {
+    const accs = loadUserAccounts();
+    const found = accs.find(a => a.name === accountName);
+    if (found && found.linkedBank) return found.linkedBank;
+    return accountName;
+  }
+  
+  function switchTab(tab) {
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(ct => ct.classList.remove('active'));
+    document.getElementById(`btn-tab-${tab}`).classList.add('active');
+    document.getElementById(`tab-${tab}-content`).classList.add('active');
+    if (tab === 'yearly') renderYearlySummary();
+    if (tab === 'accounts') renderAccountsManagement();
+    if (tab === 'bank') renderBankSummary();
+    if (tab === 'mpf') renderMPFSection();
+    if (tab === 'asset') renderAssetSection();
+  }
+
+  const dateInput = document.getElementById('date');
+  const today = new Date();
+  dateInput.value = today.toISOString().split('T')[0];
+  const filterMonthInput = document.getElementById('filter-month');
+  const currentYear = today.getFullYear();
+  const currentMonthStr = String(today.getMonth() + 1).padStart(2, '0');
+  filterMonthInput.value = `${currentYear}-${currentMonthStr}`;
+  document.getElementById('bank-flow-month').value = `${currentYear}-${currentMonthStr}`;
+  document.getElementById('mpf-rec-month').value = `${currentYear}-${currentMonthStr}`;
+
+  function toggleLinkedBankSelect() {
+    const type = document.getElementById('new-acc-type').value;
+    const rowLinked = document.getElementById('row-linked-bank');
+    const linkedSelect = document.getElementById('new-linked-bank');
+    if (type === 'ebuy') {
+      rowLinked.style.display = 'flex';
+      let html = '<option value="" disabled selected>選擇扣帳銀行戶口</option>';
+      const banks = loadUserAccounts().filter(a => a.type === 'bank');
+      banks.forEach(b => { html += `<option value="${b.name}">${b.name}</option>`; });
+      linkedSelect.innerHTML = html;
+    } else {
+      rowLinked.style.display = 'none';
+      linkedSelect.value = '';
+    }
+  }
+
+  function addNewAccount(e) {
+    e.preventDefault();
+    const type = document.getElementById('new-acc-type').value;
+    const name = document.getElementById('new-acc-name').value.trim();
+    const linkedBank = document.getElementById('new-linked-bank').value;
+    if (!type || !name) { alert('請完整填寫'); return; }
+    let accounts = loadUserAccounts();
+    if (accounts.some(a => a.name === name)) { alert('該帳戶名稱已存在'); return; }
+    
+    accounts.push({ id: Date.now().toString(), name, type, linkedBank: type === 'ebuy' ? linkedBank : '' });
+    saveUserAccounts(accounts);
+
+    if (type === 'bank') {
+      let baseBalances = loadBankBaseBalances();
+      if (!baseBalances[name]) baseBalances[name] = { MOP: 0, HKD: 0, CNY: 0 };
+      saveBankBaseBalances(baseBalances);
+    }
+
+    document.getElementById('account-add-form').reset();
+    document.getElementById('row-linked-bank').style.display = 'none';
+    renderApp();
+    alert('新增成功！');
+  }
+
+  function deleteAccount(id) {
+    if (!confirm('確定刪除此帳戶？')) return;
+    let accounts = loadUserAccounts();
+    saveUserAccounts(accounts.filter(a => a.id !== id));
+    renderApp();
+  }
+
+  function renderAccountsManagement() {
+    const accounts = loadUserAccounts();
+    const listEl = document.getElementById('accounts-manage-list');
+    if (accounts.length === 0) { listEl.innerHTML = '<div class="empty-state">尚無自訂帳戶</div>'; return; }
+    let html = '';
+    accounts.forEach(acc => {
+      let typeLabel = acc.type === 'bank' ? '🏛️ 銀行戶口' : (acc.type === 'ebuy' ? '📱 電子支付' : '💳 信用卡');
+      let subText = acc.linkedBank ? `扣帳銀行: ${acc.linkedBank}` : '';
+      html += `
+        <div class="item">
+          <div class="item-info">
+            <div class="title">${typeLabel} - ${acc.name}</div>
+            <div class="sub"><span>${subText}</span></div>
+          </div>
+          <div class="item-amount"><button class="btn-delete" onclick="deleteAccount('${acc.id}')">✕</button></div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  }
+
+  function updateAccountDropdowns() {
+    const accounts = loadUserAccounts();
+    const accountSelect = document.getElementById('account');
+    const fromAccSelect = document.getElementById('from-account');
+    const toAccSelect = document.getElementById('to-account');
+    const filterAccMonthly = document.getElementById('filter-account-monthly');
+    const bankFlowSelect = document.getElementById('bank-flow-select');
+
+    let singleHtml = '<option value="" disabled selected>選擇支付方式/戶口</option>';
+    let transferHtml = '<option value="" disabled selected>選擇戶口</option>';
+    let filterHtml = '<option value="ALL">全部支出戶口</option>';
+    let bankFlowHtml = '';
+
+    let ebuyList = accounts.filter(a => a.type === 'ebuy');
+    let bankList = accounts.filter(a => a.type === 'bank');
+    let creditList = accounts.filter(a => a.type === 'credit');
+
+    if (ebuyList.length > 0) {
+      singleHtml += '<optgroup label="電子支付">';
+      ebuyList.forEach(a => { singleHtml += `<option value="${a.name}">${a.name} ${a.linkedBank ? '(扣 ' + a.linkedBank + ')' : ''}</option>`; });
+      singleHtml += '</optgroup>';
+    }
+    if (bankList.length > 0) {
+      singleHtml += '<optgroup label="銀行戶口">';
+      bankList.forEach(a => { singleHtml += `<option value="${a.name}">${a.name}</option>`; });
+      singleHtml += '</optgroup>';
+    }
+    if (creditList.length > 0) {
+      singleHtml += '<optgroup label="信用卡戶口">';
+      creditList.forEach(a => { singleHtml += `<option value="${a.name}">${a.name}</option>`; });
+      creditList.forEach(a => { singleHtml += `<option value="${a.name}">${a.name}</option>`; });
+      singleHtml += '</optgroup>';
+    }
+
+    accounts.forEach(a => {
+      transferHtml += `<option value="${a.name}">${a.name}</option>`;
+      filterHtml += `<option value="${a.name}">${a.name}</option>`;
+    });
+
+    bankList.forEach(a => {
+      bankFlowHtml += `<option value="${a.name}">${a.name}</option>`;
+    });
+
+    if (accountSelect) accountSelect.innerHTML = singleHtml;
+    if (fromAccSelect) fromAccSelect.innerHTML = '<option value="" disabled selected>轉出戶口</option>' + transferHtml;
+    if (toAccSelect) toAccSelect.innerHTML = '<option value="" disabled selected>轉入戶口</option>' + transferHtml;
+    if (filterAccMonthly) filterAccMonthly.innerHTML = filterHtml;
+    if (bankFlowSelect) bankFlowSelect.innerHTML = bankFlowHtml;
+  }
+
+  function checkAccountAutoBind() {
+    const accName = document.getElementById('account').value;
+    const tipBox = document.getElementById('bind-tip-box');
+    const accounts = loadUserAccounts();
+    const found = accounts.find(a => a.name === accName);
+    if (found && found.linkedBank) {
+      tipBox.style.display = 'block';
+      tipBox.textContent = `💡 提示：使用 ${found.name} 支出將自動從「${found.linkedBank}」扣除！`;
+    } else {
+      tipBox.style.display = 'none';
+    }
+  }
+
+  let selectedCategoryValue = '';
+  const customCategoryInput = document.getElementById('custom-category-input');
+  
+  function renderCategoryGrid() {
+    const grid = document.getElementById('category-grid');
+    if (!grid) return;
+    const defaultCategories = [
+      { name: '餐飲', icon: '🍔' }, { name: '交通', icon: '🚗' }, { name: '購物', icon: '🛍️' },
+      { name: '娛樂', icon: '🎮' }, { name: '居住', icon: '🏠' }, { name: '母嬰', icon: '👶' },
+      { name: '保險費', icon: '🛡️' }, { name: '學貸', icon: '🎓' }, { name: '生活費', icon: '💵' },
+      { name: '薪資', icon: '💼' }, { name: '其他', icon: '🏷️' }
+    ];
+    const customCats = loadCustomCategories();
+    let html = '';
+    defaultCategories.forEach(cat => {
+      const isActive = selectedCategoryValue === cat.name ? 'active' : '';
+      html += `<div class="cat-block ${isActive}" data-value="${cat.name}"><span class="cat-icon">${cat.icon}</span><span class="cat-label">${cat.name}</span></div>`;
+    });
+    customCats.forEach(catName => {
+      const isActive = selectedCategoryValue === catName ? 'active' : '';
+      html += `
+        <div class="cat-block ${isActive}" data-value="${catName}">
+          <span class="cat-icon">📌</span>
+          <span class="cat-label">${catName}</span>
+          <span class="cat-delete-badge" onclick="deleteCustomCategory('${catName}', event)" title="刪除分類">×</span>
+        </div>`;
+    });
+    grid.innerHTML = html;
+    
+    document.querySelectorAll('.cat-block').forEach(block => {
+      block.addEventListener('click', () => {
+        document.querySelectorAll('.cat-block').forEach(b => b.classList.remove('active'));
+        block.classList.add('active');
+        selectedCategoryValue = block.getAttribute('data-value');
+        if (selectedCategoryValue === '其他') {
+          customCategoryInput.style.display = 'block';
+          customCategoryInput.required = true;
+        } else {
+          customCategoryInput.style.display = 'none';
+          customCategoryInput.required = false;
+          customCategoryInput.value = '';
+        }
+      });
+    });
+  }
+
+  let currentType = 'expense';
+  const btnExpense = document.getElementById('btn-expense');
+  const btnIncome = document.getElementById('btn-income');
+  const btnTransfer = document.getElementById('btn-transfer');
+  const rowSingleAccount = document.getElementById('row-single-account');
+  const rowTransferAccounts = document.getElementById('row-transfer-accounts');
+  const rowCategory = document.getElementById('row-category');
+  
+  if (btnExpense) btnExpense.addEventListener('click', () => setType('expense'));
+  if (btnIncome) btnIncome.addEventListener('click', () => setType('income'));
+  if (btnTransfer) btnTransfer.addEventListener('click', () => setType('transfer'));
+  
+  function setType(type) {
+    currentType = type;
+    btnExpense.classList.toggle('active', type === 'expense');
+    btnIncome.classList.toggle('active', type === 'income');
+    btnTransfer.classList.toggle('active', type === 'transfer');
+    if (type === 'transfer') {
+      rowSingleAccount.style.display = 'none';
+      rowTransferAccounts.style.display = 'flex';
+      rowCategory.style.display = 'none';
+      customCategoryInput.style.display = 'none';
+      document.getElementById('bind-tip-box').style.display = 'none';
+      document.getElementById('account').required = false;
+      document.getElementById('from-account').required = true;
+      document.getElementById('to-account').required = true;
+    } else {
+      rowSingleAccount.style.display = 'flex';
+      rowTransferAccounts.style.display = 'none';
+      rowCategory.style.display = 'flex';
+      document.getElementById('account').required = true;
+      document.getElementById('from-account').required = false;
+      document.getElementById('to-account').required = false;
+      checkAccountAutoBind();
+    }
+  }
+
+  document.getElementById('transaction-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const recordDate = dateInput.value;
+    const currency = document.getElementById('currency').value;
+    const amount = parseFloat(document.getElementById('amount').value);
+    const note = document.getElementById('note').value.trim();
+    if (!recordDate || isNaN(amount) || amount <= 0) { alert('請輸入有效的日期與金額！'); return; }
+    let accountVal = '', fromAccountVal = '', toAccountVal = '', finalCategory = '';
+    if (currentType === 'transfer') {
+      fromAccountVal = document.getElementById('from-account').value;
+      toAccountVal = document.getElementById('to-account').value;
+      if (!fromAccountVal || !toAccountVal || fromAccountVal === toAccountVal) { alert('請選擇正確且不同的轉出與轉入帳戶！'); return; }
+      finalCategory = '⇄ 內部轉帳';
+    } else {
+      accountVal = document.getElementById('account').value;
+      if (!accountVal || !selectedCategoryValue) { alert('請選擇帳戶與類別！'); return; }
+      if (selectedCategoryValue === '其他') {
+        const customVal = customCategoryInput.value.trim();
+        if (customVal) {
+          finalCategory = `🏷️ ${customVal}`;
+          let customCats = loadCustomCategories();
+          if (!customCats.includes(customVal)) { customCats.push(customVal); saveCustomCategories(customCats); }
+        } else { finalCategory = '🏷️ 其他'; }
+      } else { finalCategory = selectedCategoryValue; }
+    }
+    const newRecord = {
+      id: Date.now().toString(),
+      type: currentType,
+      date: recordDate,
+      currency: currency,
+      amount: amount,
+      account: accountVal,
+      actualAccount: getActualAccount(accountVal),
+      fromAccount: fromAccountVal,
+      actualFromAccount: getActualAccount(fromAccountVal),
+      toAccount: toAccountVal,
+      actualToAccount: getActualAccount(toAccountVal),
+      category: finalCategory,
+      note: note,
+      timestamp: Date.now()
+    };
+    const records = loadRecords();
+    records.push(newRecord);
+    saveRecords(records);
+    document.getElementById('amount').value = '';
+    document.getElementById('note').value = '';
+    customCategoryInput.value = '';
+    customCategoryInput.style.display = 'none';
+    selectedCategoryValue = '';
+    renderCategoryGrid();
+  });
+
+  function deleteRecord(id) {
+    const records = loadRecords().filter(item => item.id !== id);
+    saveRecords(records);
+  }
+
+  function calculateBankBalancesFromRecords() {
+    const records = loadRecords();
+    const baseBalances = loadBankBaseBalances();
+    const calculated = JSON.parse(JSON.stringify(baseBalances));
+    const bankList = loadUserAccounts().filter(a => a.type === 'bank').map(a => a.name);
+
+    records.forEach(item => {
+      const curr = item.currency, amt = item.amount;
+      if (item.type === 'income') {
+        const b = item.actualAccount;
+        if (bankList.includes(b)) {
+          if (!calculated[b]) calculated[b] = { MOP: 0, HKD: 0, CNY: 0 };
+          calculated[b][curr] = (calculated[b][curr] || 0) + amt;
+        }
+      } else if (item.type === 'expense' || !item.type) {
+        const b = item.actualAccount;
+        if (bankList.includes(b)) {
+          if (!calculated[b]) calculated[b] = { MOP: 0, HKD: 0, CNY: 0 };
+          calculated[b][curr] = (calculated[b][curr] || 0) - amt;
+        }
+      } else if (item.type === 'transfer') {
+        const fromB = item.actualFromAccount, toB = item.actualToAccount;
+        if (bankList.includes(fromB)) {
+          if (!calculated[fromB]) calculated[fromB] = { MOP: 0, HKD: 0, CNY: 0 };
+          calculated[fromB][curr] = (calculated[fromB][curr] || 0) - amt;
+        }
+        if (bankList.includes(toB)) {
+          if (!calculated[toB]) calculated[toB] = { MOP: 0, HKD: 0, CNY: 0 };
+          calculated[toB][curr] = (calculated[toB][curr] || 0) + amt;
+        }
+      }
+    });
+    return calculated;
+  }
+
+  function renderApp() {
+    const records = loadRecords();
+    updateAccountDropdowns();
+    renderCategoryGrid();
+    updateFilterCategoryDropdown(records);
+    renderMonthlySection(records);
+    populateYearDropdown(records);
+    renderYearlySummary();
+    renderBankSummary();
+    renderMPFSection();
+    renderAssetSection();
+  }
+
+  function updateFilterCategoryDropdown(records) {
+    const filterCatSelect = document.getElementById('filter-category');
+    if (!filterCatSelect) return;
+    const currentVal = filterCatSelect.value;
+    const defaultCats = ['餐飲', '交通', '購物', '娛樂', '居住', '母嬰', '保險費', '學貸', '生活費', '薪資', '其他'];
+    const customCats = loadCustomCategories();
+    const setOfCats = new Set(defaultCats);
+    customCats.forEach(c => setOfCats.add(c));
+    records.forEach(r => {
+      if (r.category) {
+        let cleanCat = r.category.replace(/^[^\w\u4e00-\u9fa5]+/, '').trim();
+        if (cleanCat) setOfCats.add(cleanCat);
+        setOfCats.add(r.category);
+      }
+    });
+    let html = '<option value="ALL">全部類別</option>';
+    Array.from(setOfCats).sort().forEach(c => { html += `<option value="${c}">${c}</option>`; });
+    filterCatSelect.innerHTML = html;
+    if (currentVal && Array.from(setOfCats).includes(currentVal)) filterCatSelect.value = currentVal;
+  }
+
+  function renderMonthlySection(records) {
+    const listContainer = document.getElementById('transaction-list');
+    const sortOrder = document.getElementById('sort-order').value;
+    const selectedMonthVal = filterMonthInput.value;
+    const filterCatVal = document.getElementById('filter-category').value;
+    const filterAccVal = document.getElementById('filter-account-monthly').value;
+
+    let filteredRecords = records;
+    if (selectedMonthVal) {
+      const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
+      filteredRecords = records.filter(item => {
+        if (!item.date) return false;
+        const [iYear, iMonth] = item.date.split('-').map(Number);
+        return iYear === sYear && iMonth === sMonth;
+      });
+    }
+
+    if (filterCatVal && filterCatVal !== 'ALL') {
+      filteredRecords = filteredRecords.filter(item => {
+        if (!item.category) return false;
+        let cleanCat = item.category.replace(/^[^\w\u4e00-\u9fa5]+/, '').trim();
+        return item.category === filterCatVal || cleanCat === filterCatVal;
+      });
+    }
+
+    if (filterAccVal && filterAccVal !== 'ALL') {
+      filteredRecords = filteredRecords.filter(item => {
+        if (item.type === 'transfer') {
+          return item.fromAccount === filterAccVal || item.toAccount === filterAccVal || item.actualFromAccount === filterAccVal || item.actualToAccount === filterAccVal;
+        } else {
+          return item.account === filterAccVal || item.actualAccount === filterAccVal;
+        }
+      });
+    }
+
+    const items = [...filteredRecords].sort((a, b) => {
+      const dateA = new Date(a.date), dateB = new Date(b.date);
+      return sortOrder === 'asc' ? (dateA - dateB || a.timestamp - b.timestamp) : (dateB - dateA || b.timestamp - a.timestamp);
+    });
+
+    if (items.length === 0) {
+      listContainer.innerHTML = '<div class="empty-state">當月尚無符合條件的紀錄</div>';
+      document.getElementById('record-count').textContent = '0 筆';
+    } else {
+      let html = '';
+      items.forEach(item => {
+        const mopValue = convertToMOP(item.amount, item.currency);
+        const mopConvertedText = item.currency !== 'MOP' ? `<div class="mop-converted">(≈ MOP$ ${mopValue.toFixed(1)})</div>` : '';
+        let typeClass = item.type || 'expense';
+        let amountPrefix = item.type === 'income' ? '+' : (item.type === 'transfer' ? '⇄ ' : '-');
+        let accountSubTag = `<span class="tag">💳 ${item.account}</span>`;
+        if (item.actualAccount && item.actualAccount !== item.account) accountSubTag += ` <span class="tag bank-deduct">🏛️ 扣: ${item.actualAccount}</span>`;
+        if (typeClass === 'transfer') accountSubTag = `<span class="tag transfer-tag">💳 ${item.fromAccount} ➔ ${item.toAccount}</span>`;
+        
+        html += `
+          <div class="item ${typeClass}">
+            <div class="item-info">
+              <div class="title">${item.category} ${item.note ? `<span>(${item.note})</span>` : ''}</div>
+              <div class="sub"><span>📅 ${item.date}</span> ${accountSubTag}</div>
+            </div>
+            <div class="item-amount">
+              <div class="item-amount-row">
+                <span class="amount-text">${amountPrefix}${item.currency} $${item.amount.toLocaleString()}</span>
+                <button class="btn-delete" onclick="deleteRecord('${item.id}')">✕</button>
+              </div>
+              ${mopConvertedText}
+            </div>
+          </div>
+        `;
+      });
+      listContainer.innerHTML = html;
+      document.getElementById('record-count').textContent = `${items.length} 筆`;
+    }
+    renderMonthSummary(records);
+    renderCategoryAnalysis(records, selectedMonthVal);
+  }
+
+  function renderMonthSummary(items) {
+    const selectedMonthVal = filterMonthInput.value;
+    if (!selectedMonthVal) return;
+    const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
+    let monthIncomeMOP = 0, monthExpenseMOP = 0;
+    items.forEach(item => {
+      if (!item.date) return;
+      const [iYear, iMonth] = item.date.split('-').map(Number);
+      if (iYear === sYear && iMonth === sMonth) {
+        const mopValue = convertToMOP(item.amount, item.currency);
+        if (item.type === 'income') monthIncomeMOP += mopValue;
+        if (item.type === 'expense' || !item.type) monthExpenseMOP += mopValue;
+      }
+    });
+    const monthBalanceMOP = monthIncomeMOP - monthExpenseMOP;
+    document.getElementById('month-net-balance').textContent = `MOP$ ${Math.round(monthBalanceMOP).toLocaleString()}`;
+    document.getElementById('month-income').textContent = `+MOP$ ${Math.round(monthIncomeMOP).toLocaleString()}`;
+    document.getElementById('month-expense').textContent = `-MOP$ ${Math.round(monthExpenseMOP).toLocaleString()}`;
+    const daysInMonth = new Date(sYear, sMonth, 0).getDate();
+    document.getElementById('month-daily-avg').textContent = `MOP$ ${Math.round(monthExpenseMOP / daysInMonth).toLocaleString()}/日`;
+  }
+
+  function renderCategoryAnalysis(records, selectedMonthVal) {
+    const container = document.getElementById('category-analysis-list');
+    if (!selectedMonthVal) { container.innerHTML = '<div class="empty-state">請選擇月份</div>'; return; }
+    const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
+    let categoryMap = {}, totalExpenseMOP = 0;
+    records.forEach(item => {
+      if (!item.date) return;
+      const [iYear, iMonth] = item.date.split('-').map(Number);
+      if (iYear === sYear && iMonth === sMonth && (item.type === 'expense' || !item.type)) {
+        const cat = item.category || '🏷️ 其他';
+        const mopValue = convertToMOP(item.amount, item.currency);
+        categoryMap[cat] = (categoryMap[cat] || 0) + mopValue;
+        totalExpenseMOP += mopValue;
+      }
+    });
+    const sortedCats = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+    if (sortedCats.length === 0) { container.innerHTML = '<div class="empty-state">該月份尚無支出紀錄</div>'; return; }
+    let html = '';
+    sortedCats.forEach(([cat, amt]) => {
+      const percentage = totalExpenseMOP > 0 ? ((amt / totalExpenseMOP) * 100).toFixed(1) : 0;
+      html += `
+        <div class="cat-progress-item">
+          <div class="cat-progress-info"><span>${cat}</span><span>MOP$ ${Math.round(amt).toLocaleString()} (${percentage}%)</span></div>
+          <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${percentage}%;"></div></div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+
+  function populateYearDropdown(records) {
+    const yearSelect = document.getElementById('filter-year');
+    if (!yearSelect) return;
+    const existingVal = yearSelect.value;
+    const yearsSet = new Set([currentYear]);
+    records.forEach(item => { if (item.date) yearsSet.add(parseInt(item.date.split('-')[0], 10)); });
+    yearSelect.innerHTML = '';
+    Array.from(yearsSet).sort((a, b) => b - a).forEach(yr => {
+      const opt = document.createElement('option');
+      opt.value = yr; opt.textContent = `${yr} 年`;
+      yearSelect.appendChild(opt);
+    });
+    if (existingVal && yearsSet.has(parseInt(existingVal, 10))) yearSelect.value = existingVal;
+  }
+
+  function renderYearlySummary() {
+    const yearSelect = document.getElementById('filter-year');
+    if (!yearSelect) return;
+    const selectedYear = parseInt(yearSelect.value, 10) || currentYear;
+    const records = loadRecords();
+    let yearlyIncome = 0, yearlyExpense = 0, monthlyDataMap = {}, yearlyCategoryMap = {};
+    for (let m = 1; m <= 12; m++) { monthlyDataMap[`${selectedYear}-${String(m).padStart(2, '0')}`] = { income: 0, expense: 0 }; }
+    records.forEach(item => {
+      if (!item.date) return;
+      const [iYear, iMonth] = item.date.split('-').map(Number);
+      if (iYear === selectedYear) {
+        const mopValue = convertToMOP(item.amount, item.currency);
+        const mKey = `${iYear}-${String(iMonth).padStart(2, '0')}`;
+        if (!monthlyDataMap[mKey]) monthlyDataMap[mKey] = { income: 0, expense: 0 };
+        if (item.type === 'income') { yearlyIncome += mopValue; monthlyDataMap[mKey].income += mopValue; }
+        if (item.type === 'expense' || !item.type) {
+          yearlyExpense += mopValue; monthlyDataMap[mKey].expense += mopValue;
+          const cat = item.category || '🏷️ 其他';
+          yearlyCategoryMap[cat] = (yearlyCategoryMap[cat] || 0) + mopValue;
+        }
+      }
+    });
+    const yearlyNet = yearlyIncome - yearlyExpense;
+    document.getElementById('year-net-balance').textContent = `MOP$ ${Math.round(yearlyNet).toLocaleString()}`;
+    document.getElementById('year-income').textContent = `+MOP$ ${Math.round(yearlyIncome).toLocaleString()}`;
+    document.getElementById('year-expense').textContent = `-MOP$ ${Math.round(yearlyExpense).toLocaleString()}`;
+    document.getElementById('year-monthly-avg-expense').textContent = `MOP$ ${Math.round(yearlyExpense / 12).toLocaleString()}/月`;
+    const savingsRate = yearlyIncome > 0 ? (((yearlyIncome - yearlyExpense) / yearlyIncome) * 100).toFixed(1) : 0;
+    document.getElementById('year-savings-rate').textContent = `${savingsRate}%`;
+    
+    let monthsHtml = '';
+    Object.keys(monthlyDataMap).sort().forEach(mKey => {
+      const mData = monthlyDataMap[mKey], mNet = mData.income - mData.expense;
+      monthsHtml += `<tr><td>${mKey}</td><td style="color:var(--income);">+${Math.round(mData.income).toLocaleString()}</td><td style="color:var(--expense);">-${Math.round(mData.expense).toLocaleString()}</td><td><span class="${mNet >= 0 ? 'mpf-diff-positive' : 'mpf-diff-negative'}">${Math.round(mNet).toLocaleString()}</span></td></tr>`;
+    });
+    document.getElementById('yearly-months-tbody').innerHTML = monthsHtml;
+    
+    const yearlyCatContainer = document.getElementById('yearly-category-analysis-list');
+    const sortedYearlyCats = Object.entries(yearlyCategoryMap).sort((a, b) => b[1] - a[1]);
+    if (sortedYearlyCats.length === 0) {
+      yearlyCatContainer.innerHTML = '<div class="empty-state">該年度尚無支出紀錄</div>';
+    } else {
+      let catHtml = '';
+      sortedYearlyCats.forEach(([cat, amt]) => {
+        const percentage = yearlyExpense > 0 ? ((amt / yearlyExpense) * 100).toFixed(1) : 0;
+        catHtml += `<div class="cat-progress-item"><div class="cat-progress-info"><span>${cat}</span><span>MOP$ ${Math.round(amt).toLocaleString()} (${percentage}%)</span></div><div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${percentage}%;"></div></div></div>`;
+      });
+      yearlyCatContainer.innerHTML = catHtml;
+    }
+  }
+
+  function exportMonthCSV() {
+    const selectedMonthVal = filterMonthInput.value;
+    const records = loadRecords();
+    const filtered = records.filter(item => item.date && item.date.startsWith(selectedMonthVal));
+    if (filtered.length === 0) { alert('該月份無紀錄可導出'); return; }
+    let csv = '\uFEFF日期,類型,分類,金額,幣別,帳戶/來源,備註\n';
+    filtered.forEach(item => { csv += `"${item.date}","${item.type || 'expense'}","${item.category || ''}","${item.amount}","${item.currency}","${item.account || item.fromAccount + '->' + item.toAccount}","${item.note || ''}"\n`; });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `月度記帳_${selectedMonthVal}.csv`; a.click();
+  }
+
+  function exportYearCSV() {
+    const selectedYear = document.getElementById('filter-year').value;
+    const records = loadRecords();
+    const filtered = records.filter(item => item.date && item.date.startsWith(selectedYear));
+    if (filtered.length === 0) { alert('該年度無紀錄可導出'); return; }
+    let csv = '\uFEFF日期,類型,分類,金額,幣別,帳戶/來源,備註\n';
+    filtered.forEach(item => { csv += `"${item.date}","${item.type || 'expense'}","${item.category || ''}","${item.amount}","${item.currency}","${item.account || item.fromAccount + '->' + item.toAccount}","${item.note || ''}"\n`; });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `年度記帳_${selectedYear}.csv`; a.click();
+  }
+
+  function renderBankSummary() {
+    const calculatedBanks = calculateBankBalancesFromRecords();
+    const bankList = loadUserAccounts().filter(a => a.type === 'bank').map(a => a.name);
+    let grandTotalMOP = 0;
+    let totalMopAll = 0, totalHkdAll = 0, totalCnyAll = 0;
+    let editorHtml = '';
+
+    bankList.forEach(bankName => {
+      const currMap = calculatedBanks[bankName] || { MOP: 0, HKD: 0, CNY: 0 };
+      let bankMopSum = 0, currGridHtml = '';
+      
+      totalMopAll += (currMap['MOP'] || 0);
+      totalHkdAll += (currMap['HKD'] || 0);
+      totalCnyAll += (currMap['CNY'] || 0);
+
+      ['MOP', 'HKD', 'CNY'].forEach(c => {
+        const val = currMap[c] || 0;
+        bankMopSum += convertToMOP(val, c);
+        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toLocaleString(undefined, {maximumFractionDigits: 1})}</span></div>`;
+      });
+      grandTotalMOP += bankMopSum;
+
+      editorHtml += `
+        <div class="bank-card">
+          <div class="bank-card-title"><span>🏛️ ${bankName}</span><span style="font-size: 12px; color: var(--bank);">≈ MOP$ ${Math.round(bankMopSum).toLocaleString()}</span></div>
+          <div class="bank-currency-grid">${currGridHtml}</div>
+          <div class="bank-edit-row">
+            <select id="base-action-${bankName}">
+              <option value="set">初始金額</option>
+              <option value="add">增加</option>
+              <option value="sub">減少</option>
+            </select>
+            <select id="base-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
+            <input type="number" id="base-amt-${bankName}" placeholder="金額" step="any">
+            <button type="button" class="btn-sm-save" onclick="updateBankBaseAmount('${bankName}')">確認</button>
+          </div>
+        </div>
+      `;
+    });
+
+    if (bankList.length === 0) editorHtml = '<div class="empty-state">尚無銀行戶口，請至「帳戶管理」新增</div>';
+
+    document.getElementById('bank-total-balance').textContent = `MOP$ ${Math.round(grandTotalMOP).toLocaleString()}`;
+    document.getElementById('bank-total-mop').textContent = `MOP$ ${Math.round(totalMopAll).toLocaleString()}`;
+    document.getElementById('bank-total-hkd').textContent = `HK$ ${Math.round(totalHkdAll).toLocaleString()}`;
+    document.getElementById('bank-total-cny').textContent = `CN¥ ${Math.round(totalCnyAll).toLocaleString()}`;
+    document.getElementById('bank-accounts-editor-container').innerHTML = editorHtml;
+    renderBankFlowList();
+  }
+
+  function updateBankBaseAmount(bankName) {
+    const action = document.getElementById(`base-action-${bankName}`).value;
+    const curr = document.getElementById(`base-curr-${bankName}`).value;
+    const amt = parseFloat(document.getElementById(`base-amt-${bankName}`).value);
+    if (isNaN(amt)) { alert('請輸入數字'); return; }
+    
+    const currentBase = loadBankBaseBalances();
+    if (!currentBase[bankName]) currentBase[bankName] = { MOP: 0, HKD: 0, CNY: 0 };
+    
+    if (action === 'set') {
+      currentBase[bankName][curr] = amt;
+    } else if (action === 'add') {
+      currentBase[bankName][curr] = (currentBase[bankName][curr] || 0) + amt;
+    } else if (action === 'sub') {
+      currentBase[bankName][curr] = (currentBase[bankName][curr] || 0) - amt;
+    }
+
+    saveBankBaseBalances(currentBase);
+    renderBankSummary();
+    alert('銀行戶口金額更新成功！');
+  }
+
+  function renderBankFlowList() {
+    const selectedBank = document.getElementById('bank-flow-select').value;
+    const selectedCurr = document.getElementById('bank-flow-curr').value;
+    const selectedMonth = document.getElementById('bank-flow-month').value;
+    const records = loadRecords();
+    const flowContainer = document.getElementById('bank-transaction-list');
+    if (!selectedBank) { flowContainer.innerHTML = '<div class="empty-state">尚無銀行戶口</div>'; return; }
+
+    const bankRecords = records.filter(item => {
+      const isMatchBank = (item.actualAccount === selectedBank || item.actualFromAccount === selectedBank || item.actualToAccount === selectedBank);
+      const isMatchCurr = (selectedCurr === 'ALL' || item.currency === selectedCurr);
+      const isMatchMonth = (!selectedMonth || (item.date && item.date.startsWith(selectedMonth)));
+      return isMatchBank && isMatchCurr && isMatchMonth;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (bankRecords.length === 0) { flowContainer.innerHTML = '<div class="empty-state">尚無流水帳紀錄</div>'; return; }
+    let html = '';
+    bankRecords.forEach(item => {
+      let typeClass = item.type || 'expense';
+      let amountPrefix = item.type === 'income' ? '+' : (item.type === 'transfer' ? '⇄ ' : '-');
+      html += `
+        <div class="item ${typeClass}">
+          <div class="item-info">
+            <div class="title">${item.category} ${item.note ? `<span>(${item.note})</span>` : ''}</div>
+            <div class="sub"><span>📅 ${item.date}</span></div>
+          </div>
+          <div class="item-amount"><span class="amount-text">${amountPrefix}${item.currency} $${item.amount.toLocaleString()}</span></div>
+        </div>
+      `;
+    });
+    flowContainer.innerHTML = html;
+  }
+
+  function renderMPFSection() {
+    const accounts = loadMPFAccountsData();
+    const records = loadMPFMonthlyRecordsData();
+    const accSelect = document.getElementById('mpf-rec-account');
+    let accOptionsHtml = '<option value="" disabled selected>選擇 MPF 帳戶</option>';
+    let accountsHtml = '';
+    accounts.forEach(acc => {
+      accOptionsHtml += `<option value="${acc.id}">${acc.name}</option>`;
+      accountsHtml += `
+        <div class="item" style="border-left-color: #059669;">
+          <div class="item-info"><div class="title">🛡️ ${acc.name}</div><div class="sub"><span>初額: HK$ ${(acc.initialBalance || 0).toLocaleString()}</span></div></div>
+          <div class="item-amount"><div class="item-amount-row"><span class="amount-text" style="color: #059669;">HK$ ${acc.balance.toLocaleString()}</span><button class="btn-delete" onclick="deleteMPFAccount('${acc.id}')">✕</button></div></div>
+        </div>
+      `;
+    });
+    document.getElementById('mpf-accounts-container').innerHTML = accountsHtml;
+    accSelect.innerHTML = accOptionsHtml;
+    renderMPFComparisonTable(records, accounts);
+  }
+
+  function addMPFAccount() {
+    const name = document.getElementById('new-mpf-acc-name').value.trim();
+    const balance = parseFloat(document.getElementById('new-mpf-acc-balance').value);
+    if (!name || isNaN(balance)) { alert('請完整填寫'); return; }
+    const accounts = loadMPFAccountsData();
+    accounts.push({ id: Date.now().toString(), name, initialBalance: balance, balance });
+    saveMPFAccountsData(accounts);
+    renderMPFSection();
+  }
+
+  function deleteMPFAccount(id) {
+    if (!confirm('確定刪除？')) return;
+    saveMPFAccountsData(loadMPFAccountsData().filter(a => a.id !== id));
+    saveMPFMonthlyRecordsData(loadMPFMonthlyRecordsData().filter(r => r.accountId !== id));
+    renderMPFSection();
+  }
+
+  function saveMPFMonthlyRecord() {
+    const month = document.getElementById('mpf-rec-month').value;
+    const accountId = document.getElementById('mpf-rec-account').value;
+    const balance = parseFloat(document.getElementById('mpf-rec-balance').value);
+    const contrib = parseFloat(document.getElementById('mpf-rec-contrib').value) || 0;
+    if (!month || !accountId || isNaN(balance)) { alert('請填寫完整'); return; }
+    let records = loadMPFMonthlyRecordsData();
+    const idx = records.findIndex(r => r.month === month && r.accountId === accountId);
+    const newRec = { id: idx >= 0 ? records[idx].id : Date.now().toString(), month, accountId, balance, contrib };
+    if (idx >= 0) records[idx] = newRec; else records.push(newRec);
+    saveMPFMonthlyRecordsData(records);
+    let accounts = loadMPFAccountsData();
+    const target = accounts.find(a => a.id === accountId);
+    if (target) { target.balance = balance; saveMPFAccountsData(accounts); }
+    renderMPFSection();
+  }
+
+  function deleteMPFMonthlyRecord(id) {
+    saveMPFMonthlyRecordsData(loadMPFMonthlyRecordsData().filter(r => r.id !== id));
+    renderMPFSection();
+  }
+
+  function renderMPFComparisonTable(records, accounts) {
+    const tbody = document.getElementById('mpf-comparison-tbody');
+    let totalVal = 0; accounts.forEach(a => totalVal += a.balance);
+    document.getElementById('mpf-total-balance').textContent = `HK$ ${Math.round(totalVal).toLocaleString()}`;
+    if (records.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">尚無紀錄</td></tr>'; return; }
+    
+    let sorted = [...records].sort((a, b) => a.month.localeCompare(b.month));
+    let html = '';
+    let accountLastBalance = {};
+    accounts.forEach(acc => { accountLastBalance[acc.id] = acc.initialBalance || 0; });
+    let evaluatedRecords = sorted.map(rec => {
+      const base = accountLastBalance[rec.accountId] !== undefined ? accountLastBalance[rec.accountId] : 0;
+      const diff = rec.balance - base - (rec.contrib || 0);
+      accountLastBalance[rec.accountId] = rec.balance;
+      return { ...rec, diff };
+    });
+    evaluatedRecords.reverse().forEach(rec => {
+      const acc = accounts.find(a => a.id === rec.accountId);
+      const diffClass = rec.diff >= 0 ? 'mpf-diff-positive' : 'mpf-diff-negative';
+      const diffPrefix = rec.diff >= 0 ? '+' : '';
+      html += `<tr><td>${rec.month}</td><td>${acc ? acc.name : '已刪'}</td><td>HK$ ${rec.balance.toLocaleString()}</td><td>HK$ ${rec.contrib || 0}</td><td><span class="${diffClass}">${diffPrefix}HK$ ${Math.round(rec.diff).toLocaleString()}</span></td><td><button class="btn-delete" onclick="deleteMPFMonthlyRecord('${rec.id}')">✕</button></td></tr>`;
+    });
+    tbody.innerHTML = html;
+  }
+
+  function renderAssetSection() {
+    const calculatedBanks = calculateBankBalancesFromRecords();
+    const bankList = loadUserAccounts().filter(a => a.type === 'bank').map(a => a.name);
+    let totalBankMop = 0;
+    bankList.forEach(b => {
+      const currMap = calculatedBanks[b] || { MOP: 0, HKD: 0, CNY: 0 };
+      ['MOP', 'HKD', 'CNY'].forEach(c => totalBankMop += convertToMOP(currMap[c] || 0, c));
+    });
+    const mpfAccounts = loadMPFAccountsData();
+    let totalMpfHkd = 0; mpfAccounts.forEach(a => totalMpfHkd += (a.balance || 0));
+    const totalMpfMop = convertToMOP(totalMpfHkd, 'HKD');
+    const globalDeductions = loadGlobalDeductions();
+    let totalDeductionMop = 0; globalDeductions.forEach(d => totalDeductionMop += convertToMOP(d.amount, d.currency));
+    
+    const grandTotal = Math.max(0, totalBankMop + totalMpfMop - totalDeductionMop);
+    document.getElementById('asset-grand-total').textContent = `MOP$ ${Math.round(grandTotal).toLocaleString()}`;
+    document.getElementById('asset-bank-val').textContent = `MOP$ ${Math.round(totalBankMop).toLocaleString()}`;
+    document.getElementById('asset-mpf-val').textContent = `MOP$ ${Math.round(totalMpfMop).toLocaleString()}`;
+    
+    const deductionsListEl = document.getElementById('asset-deductions-list');
+    if (globalDeductions.length === 0) {
+      deductionsListEl.innerHTML = '<div class="empty-state">尚無扣減紀錄</div>';
+    } else {
+      let dedHtml = '';
+      globalDeductions.slice().reverse().forEach(d => {
+        dedHtml += `<div class="item" style="border-left-color: var(--asset);"><div class="item-info"><div class="title">📉 扣減金額: ${d.currency} $${d.amount.toLocaleString()}</div><div class="sub"><span>📅 ${d.date}</span> ${d.note ? `<span>(${d.note})</span>` : ''}</div></div><div class="item-amount"><div class="item-amount-row"><span class="amount-text" style="color: var(--asset);">- ${d.currency} $${d.amount.toLocaleString()}</span><button class="btn-delete" onclick="deleteGlobalDeduction('${d.id}')">✕</button></div></div></div>`;
+      });
+      deductionsListEl.innerHTML = dedHtml;
+    }
+
+    let breakdownHtml = '';
+    bankList.forEach(b => {
+      let bMop = 0, currMap = calculatedBanks[b] || {};
+      ['MOP', 'HKD', 'CNY'].forEach(c => bMop += convertToMOP(currMap[c] || 0, c));
+      breakdownHtml += `<div class="cat-progress-item" style="background:#F8FAFC;padding:8px;border-radius:8px;"><div class="cat-progress-info"><span>🏛️ ${b}</span><span style="color:var(--bank);">MOP$ ${Math.round(bMop).toLocaleString()}</span></div></div>`;
+    });
+    mpfAccounts.forEach(a => {
+      breakdownHtml += `<div class="cat-progress-item" style="background:#F8FAFC;padding:8px;border-radius:8px;"><div class="cat-progress-info"><span>🛡️ ${a.name}</span><span style="color:var(--mpf);">MOP$ ${Math.round(convertToMOP(a.balance, 'HKD')).toLocaleString()}</span></div></div>`;
+    });
+    document.getElementById('asset-breakdown-list').innerHTML = breakdownHtml || '<div class="empty-state">尚無資產明細</div>';
+
+    let ratioHtml = '';
+    const rawTotalAssets = totalBankMop + totalMpfMop;
+    if (rawTotalAssets > 0) {
+      const bankRatio = ((totalBankMop / rawTotalAssets) * 100).toFixed(1);
+      const mpfRatio = ((totalMpfMop / rawTotalAssets) * 100).toFixed(1);
+      ratioHtml += `
+        <div class="cat-progress-item"><div class="cat-progress-info"><span>🏛️ 銀行存款總佔比</span><span>MOP$ ${Math.round(totalBankMop).toLocaleString()} (${bankRatio}%)</span></div><div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${bankRatio}%; background: var(--bank);"></div></div></div>
+        <div class="cat-progress-item" style="margin-top: 6px;"><div class="cat-progress-info"><span>🛡️ 強積金總佔比</span><span>MOP$ ${Math.round(totalMpfMop).toLocaleString()} (${mpfRatio}%)</span></div><div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${mpfRatio}%; background: var(--mpf);"></div></div></div>
+      `;
+    } else { ratioHtml = '<div class="empty-state">尚無資產數據可供計算佔比</div>'; }
+    document.getElementById('asset-ratio-list').innerHTML = ratioHtml;
+  }
+
+  function executeGlobalAssetDeduct() {
+    const curr = document.getElementById('asset-deduct-curr').value;
+    const amt = parseFloat(document.getElementById('asset-deduct-amt').value);
+    const note = document.getElementById('asset-deduct-note').value.trim();
+    if (isNaN(amt) || amt <= 0) { alert('請輸入有效金額'); return; }
+    const deductions = loadGlobalDeductions();
+    deductions.push({ id: Date.now().toString(), currency: curr, amount: amt, note, date: new Date().toISOString().split('T')[0] });
+    saveGlobalDeductions(deductions);
+    document.getElementById('asset-deduct-amt').value = '';
+    document.getElementById('asset-deduct-note').value = '';
+    renderAssetSection();
+    alert('扣減成功！');
+  }
+
+  function deleteGlobalDeduction(id) {
+    const deductions = loadGlobalDeductions().filter(d => d.id !== id);
+    saveGlobalDeductions(deductions);
+    renderAssetSection();
+  }
+
+  function exportJSONBackup() {
+    const backupData = { records: loadRecords(), userAccounts: loadUserAccounts(), bankBaseBalances: loadBankBaseBalances(), globalDeductions: loadGlobalDeductions(), mpfAccounts: loadMPFAccountsData(), mpfMonthlyRecords: loadMPFMonthlyRecordsData(), customCategories: loadCustomCategories() };
+    const a = document.createElement('a');
+    a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    a.download = `記帳本備份_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  }
+
+  function importJSONBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.records) {
+          cloudData.records = data.records || [];
+          if (data.userAccounts) cloudData.userAccounts = data.userAccounts;
+          if (data.bankBaseBalances) cloudData.bankBaseBalances = data.bankBaseBalances;
+          if (data.globalDeductions) cloudData.globalDeductions = data.globalDeductions;
+          if (data.mpfAccounts) cloudData.mpfAccounts = data.mpfAccounts;
+          if (data.mpfMonthlyRecords) cloudData.mpfMonthlyRecords = data.mpfMonthlyRecords;
+          if (data.customCategories) cloudData.customCategories = data.customCategories;
+          syncToFirebase();
+          alert('匯入並同步至雲端成功！');
+        }
+        renderApp();
+      } catch (err) { alert('格式錯誤'); }
+    };
+    reader.readAsText(file);
+  }
+</script>
+</body>
+</html>
