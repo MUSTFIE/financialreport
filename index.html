@@ -280,6 +280,7 @@
       display: flex;
       justify-content: space-between;
       font-weight: 600;
+      align-items: center;
     }
     .cat-progress-bar-bg {
       background: #F1F5F9;
@@ -380,6 +381,7 @@
       justify-content: center;
       gap: 3px;
       transition: all 0.15s ease;
+      position: relative;
     }
     .cat-block:hover {
       border-color: var(--primary);
@@ -393,6 +395,28 @@
     }
     .cat-block .cat-icon { font-size: 16px; line-height: 1; }
     .cat-block .cat-label { font-size: 10px; }
+    .cat-block .cat-delete-btn {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.2);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 14px;
+      height: 14px;
+      font-size: 9px;
+      line-height: 14px;
+      text-align: center;
+      cursor: pointer;
+      display: none;
+    }
+    .cat-block:hover .cat-delete-btn {
+      display: block;
+    }
+    .cat-block.active .cat-delete-btn {
+      background: rgba(255,255,255,0.4);
+    }
     #custom-category-input { display: none; }
     .btn-submit {
       background: var(--primary);
@@ -496,16 +520,32 @@
     .curr-name { font-size: 10px; color: var(--muted); }
     .curr-val { font-size: 13px; font-weight: 700; color: var(--text); }
     .interest-note { font-size: 10px; color: #10B981; margin-top: 4px; font-weight: 600; }
+    .bank-edit-group {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
     .bank-edit-row {
       display: flex;
       gap: 6px;
-      margin-top: 6px;
       align-items: center;
     }
     .bank-edit-row select { width: 90px; padding: 6px; font-size: 11px; }
     .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 11px; }
     .btn-sm-save {
       background: var(--bank);
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-sm-sub {
+      background: var(--expense);
       color: white;
       border: none;
       padding: 6px 10px;
@@ -675,17 +715,7 @@
           <div class="category-grid-container" id="row-category">
             <span class="category-grid-label">選擇分類：</span>
             <div class="category-grid" id="category-grid">
-              <div class="cat-block" data-value="餐飲"><span class="cat-icon">🍔</span><span class="cat-label">餐飲</span></div>
-              <div class="cat-block" data-value="交通"><span class="cat-icon">🚗</span><span class="cat-label">交通</span></div>
-              <div class="cat-block" data-value="購物"><span class="cat-icon">🛍️</span><span class="cat-label">購物</span></div>
-              <div class="cat-block" data-value="娛樂"><span class="cat-icon">🎮</span><span class="cat-label">娛樂</span></div>
-              <div class="cat-block" data-value="居住"><span class="cat-icon">🏠</span><span class="cat-label">居住</span></div>
-              <div class="cat-block" data-value="母嬰"><span class="cat-icon">👶</span><span class="cat-label">母嬰</span></div>
-              <div class="cat-block" data-value="保險費"><span class="cat-icon">🛡️</span><span class="cat-label">保險費</span></div>
-              <div class="cat-block" data-value="學貸"><span class="cat-icon">🎓</span><span class="cat-label">學貸</span></div>
-              <div class="cat-block" data-value="生活費"><span class="cat-icon">💵</span><span class="cat-label">生活費</span></div>
-              <div class="cat-block" data-value="薪資"><span class="cat-icon">💼</span><span class="cat-label">薪資</span></div>
-              <div class="cat-block" data-value="其他"><span class="cat-icon">🏷️</span><span class="cat-label">其他</span></div>
+              <!-- 動態渲染分類方塊 -->
             </div>
           </div>
           <input type="text" id="custom-category-input" placeholder="請輸入自訂類別名稱">
@@ -825,7 +855,7 @@
     </div>
     <div class="desktop-grid-2">
       <div class="card">
-        <div class="card-title">🏛️ 銀行戶口金額設定</div>
+        <div class="card-title">🏛️ 銀行戶口金額管理</div>
         <div id="bank-accounts-editor-container"></div>
       </div>
       <div class="card">
@@ -1031,7 +1061,8 @@
       { id: '2', name: '匯豐強積金戶口', initialBalance: 0, balance: 20000 }
     ],
     mpfMonthlyRecords: [],
-    customCategories: []
+    customCategories: [],
+    deletedDefaultCategories: [] // 記錄被刪除的預設分類
   };
 
   const EXCHANGE_RATES = { MOP: 1.0, HKD: 1.03, CNY: 1.13 };
@@ -1062,29 +1093,25 @@
     const actionContainerEl = document.getElementById('auth-action-container');
     const syncBadge = document.getElementById('sync-status-badge');
 
-    // 移除舊的即時資料庫監聽器（避免切換帳戶時資料殘留）
     if (dbRef && dbListener) {
       dbRef.off('value', dbListener);
     }
 
     if (user) {
-      // 已登入：顯示使用者頭像或名稱，並將資料路徑對應到該使用者的專屬資料夾
       userInfoEl.innerHTML = `
         <img src="${user.photoURL || ''}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">
         <span>${user.displayName || user.email}</span>
       `;
       actionContainerEl.innerHTML = `<button type="button" class="btn-auth logout" onclick="logout()">登出</button>`;
       
-      // 多人隔離：使用使用者 UID 作為 Realtime Database 路徑
       dbRef = db.ref(`users/${user.uid}/cloud_accounting_data`);
-      
       syncBadge.textContent = '☁️ 正在連線至你的 Firebase 雲端...';
 
-      // 掛載監聽器
       dbListener = dbRef.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
           cloudData = val;
+          if (!cloudData.deletedDefaultCategories) cloudData.deletedDefaultCategories = [];
         } else {
           syncToFirebase();
         }
@@ -1095,16 +1122,17 @@
       });
 
     } else {
-      // 未登入
       userInfoEl.innerHTML = `<span>🔒 請登入以同步個人雲端資料</span>`;
       actionContainerEl.innerHTML = `<button type="button" class="btn-auth" onclick="loginWithGoogle()">Google 登入</button>`;
       syncBadge.textContent = '⚠️ 尚未登入，資料僅暫存於本地';
       
-      // 未登入時可以給予一個預設共用或空白資料檢視
       dbRef = db.ref('cloud_accounting_data_guest');
       dbRef.once('value').then((snapshot) => {
         const val = snapshot.val();
-        if (val) cloudData = val;
+        if (val) {
+          cloudData = val;
+          if (!cloudData.deletedDefaultCategories) cloudData.deletedDefaultCategories = [];
+        }
         renderApp();
       });
     }
@@ -1116,6 +1144,7 @@
 
   function loadRecords() { return cloudData.records || []; }
   function loadCustomCategories() { return cloudData.customCategories || []; }
+  function loadDeletedDefaultCategories() { return cloudData.deletedDefaultCategories || []; }
   function loadBankBaseBalances() { return cloudData.bankBaseBalances; }
   function loadGlobalDeductions() { return cloudData.globalDeductions || []; }
   function loadMPFAccountsData() { return cloudData.mpfAccounts || []; }
@@ -1138,6 +1167,7 @@
 
   function saveRecords(records) { cloudData.records = records; syncToFirebase(); }
   function saveCustomCategories(cats) { cloudData.customCategories = cats; syncToFirebase(); renderCategoryGrid(); }
+  function saveDeletedDefaultCategories(delCats) { cloudData.deletedDefaultCategories = delCats; syncToFirebase(); renderCategoryGrid(); }
   function saveBankBaseBalances(data) { cloudData.bankBaseBalances = data; syncToFirebase(); }
   function saveGlobalDeductions(data) { cloudData.globalDeductions = data; syncToFirebase(); }
   function saveMPFAccountsData(data) { cloudData.mpfAccounts = data; syncToFirebase(); }
@@ -1182,26 +1212,35 @@
   
   function renderCategoryGrid() {
     const grid = document.getElementById('category-grid');
-    const defaultCategories = [
+    const baseDefaultCategories = [
       { name: '餐飲', icon: '🍔' }, { name: '交通', icon: '🚗' }, { name: '購物', icon: '🛍️' },
       { name: '娛樂', icon: '🎮' }, { name: '居住', icon: '🏠' }, { name: '母嬰', icon: '👶' },
       { name: '保險費', icon: '🛡️' }, { name: '學貸', icon: '🎓' }, { name: '生活費', icon: '💵' },
       { name: '薪資', icon: '💼' }, { name: '其他', icon: '🏷️' }
     ];
+    const deletedCats = loadDeletedDefaultCategories();
     const customCats = loadCustomCategories();
+    
     let html = '';
-    defaultCategories.forEach(cat => {
-      const isActive = selectedCategoryValue === cat.name ? 'active' : '';
-      html += `<div class="cat-block ${isActive}" data-value="${cat.name}"><span class="cat-icon">${cat.icon}</span><span class="cat-label">${cat.name}</span></div>`;
+    baseDefaultCategories.forEach(cat => {
+      if (!deletedCats.includes(cat.name)) {
+        const isActive = selectedCategoryValue === cat.name ? 'active' : '';
+        const showDelete = cat.name !== '其他'; // 「其他」通常保留不刪除，或者也可以刪除？這裡保留「其他」不可刪或可刪皆可，若要全都能刪除可不設限。為了安全讓「其他」保留，其餘可刪。
+        let deleteBtnHtml = showDelete ? `<button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${cat.name}', true)" title="刪除分類">×</button>` : '';
+        html += `<div class="cat-block ${isActive}" data-value="${cat.name}"><span class="cat-icon">${cat.icon}</span><span class="cat-label">${cat.name}</span>${deleteBtnHtml}</div>`;
+      }
     });
+
     customCats.forEach(catName => {
       const isActive = selectedCategoryValue === catName ? 'active' : '';
-      html += `<div class="cat-block ${isActive}" data-value="${catName}"><span class="cat-icon">📌</span><span class="cat-label">${catName}</span></div>`;
+      html += `<div class="cat-block ${isActive}" data-value="${catName}"><span class="cat-icon">📌</span><span class="cat-label">${catName}</span><button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${catName}', false)" title="刪除分類">×</button></div>`;
     });
+
     grid.innerHTML = html;
     
     document.querySelectorAll('.cat-block').forEach(block => {
-      block.addEventListener('click', () => {
+      block.addEventListener('click', (e) => {
+        if (e.target.classList.contains('cat-delete-btn')) return;
         document.querySelectorAll('.cat-block').forEach(b => b.classList.remove('active'));
         block.classList.add('active');
         selectedCategoryValue = block.getAttribute('data-value');
@@ -1215,6 +1254,28 @@
         }
       });
     });
+  }
+
+  function deleteCategory(event, catName, isDefault) {
+    event.stopPropagation();
+    if (!confirm(`確定要刪除支付分類「${catName}」嗎？`)) return;
+    
+    if (selectedCategoryValue === catName) {
+      selectedCategoryValue = '';
+      customCategoryInput.style.display = 'none';
+      customCategoryInput.required = false;
+    }
+
+    if (isDefault) {
+      let deletedCats = loadDeletedDefaultCategories();
+      if (!deletedCats.includes(catName)) {
+        deletedCats.push(catName);
+        saveDeletedDefaultCategories(deletedCats);
+      }
+    } else {
+      let customCats = loadCustomCategories().filter(c => c !== catName);
+      saveCustomCategories(customCats);
+    }
   }
 
   let currentType = 'expense';
@@ -1723,15 +1784,24 @@
       });
       grandTotalMOP += bankMopSum;
       let extraInfoHtml = (bankName === '澳門螞蟻銀行' && currMap._accruedInterest > 0) ? `<div class="interest-note">✨ 2%利息 (由2026-07-30起算) (≈ MOP$ ${currMap._accruedInterest.toFixed(1)})[cite: 1]</div>` : '';
+      
       editorHtml += `
         <div class="bank-card">
           <div class="bank-card-title"><span>🏛️ ${bankName}</span><span style="font-size: 12px; color: var(--bank);">≈ MOP$ ${Math.round(bankMopSum).toLocaleString()}</span></div>
           <div class="bank-currency-grid">${currGridHtml}</div>
           ${extraInfoHtml}
-          <div class="bank-edit-row">
-            <select id="base-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
-            <input type="number" id="base-amt-${bankName}" placeholder="初始金額">
-            <button type="button" class="btn-sm-save" onclick="updateBankBaseAmount('${bankName}')">設定</button>
+          <div class="bank-edit-group">
+            <div class="bank-edit-row">
+              <select id="base-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
+              <input type="number" id="base-amt-${bankName}" placeholder="設定初始金額">
+              <button type="button" class="btn-sm-save" onclick="updateBankBaseAmount('${bankName}')">設定初始</button>
+            </div>
+            <div class="bank-edit-row">
+              <select id="adj-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
+              <input type="number" id="adj-amt-${bankName}" placeholder="金額" step="any">
+              <button type="button" class="btn-sm-save" onclick="modifyBankBalance('${bankName}', 'add')">增加</button>
+              <button type="button" class="btn-sm-sub" onclick="modifyBankBalance('${bankName}', 'sub')">減少</button>
+            </div>
           </div>
         </div>
       `;
@@ -1753,7 +1823,36 @@
     if (!currentBase[bankName]) currentBase[bankName] = { MOP: 0, HKD: 0, CNY: 0 };
     currentBase[bankName][curr] = amt;
     saveBankBaseBalances(currentBase);
-    alert('已更新基準！');
+    document.getElementById(`base-amt-${bankName}`).value = '';
+    alert('已更新初始金額設定！');
+  }
+
+  function modifyBankBalance(bankName, actionType) {
+    const curr = document.getElementById(`adj-curr-${bankName}`).value;
+    const amt = parseFloat(document.getElementById(`adj-amt-${bankName}`).value);
+    if (isNaN(amt) || amt <= 0) { alert('請輸入有效的調整金額'); return; }
+
+    const records = loadRecords();
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // 透過新增一筆「收入」或「支出」記錄來達成銀行金額的增加或減少，確保流水帳同步更新且邏輯一致
+    const newRecord = {
+      id: Date.now().toString(),
+      type: actionType === 'add' ? 'income' : 'expense',
+      date: todayStr,
+      currency: curr,
+      amount: amt,
+      account: bankName,
+      actualAccount: bankName,
+      category: actionType === 'add' ? '🏷️ 帳戶調增' : '🏷️ 帳戶調減',
+      note: actionType === 'add' ? '手動增加銀行金額' : '手動減少銀行金額',
+      timestamp: Date.now()
+    };
+
+    records.push(newRecord);
+    saveRecords(records);
+    document.getElementById(`adj-amt-${bankName}`).value = '';
+    alert(actionType === 'add' ? '已成功增加金額！' : '已成功減少金額！');
   }
 
   function renderBankFlowList() {
@@ -1976,7 +2075,15 @@
   }
 
   function exportJSONBackup() {
-    const backupData = { records: loadRecords(), bankBaseBalances: loadBankBaseBalances(), globalDeductions: loadGlobalDeductions(), mpfAccounts: loadMPFAccountsData(), mpfMonthlyRecords: loadMPFMonthlyRecordsData(), customCategories: loadCustomCategories() };
+    const backupData = { 
+      records: loadRecords(), 
+      bankBaseBalances: loadBankBaseBalances(), 
+      globalDeductions: loadGlobalDeductions(), 
+      mpfAccounts: loadMPFAccountsData(), 
+      mpfMonthlyRecords: loadMPFMonthlyRecordsData(), 
+      customCategories: loadCustomCategories(),
+      deletedDefaultCategories: loadDeletedDefaultCategories()
+    };
     const a = document.createElement('a');
     a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     a.download = `記帳本備份_${new Date().toISOString().split('T')[0]}.json`;
@@ -1997,6 +2104,7 @@
           if (data.mpfAccounts) cloudData.mpfAccounts = data.mpfAccounts;
           if (data.mpfMonthlyRecords) cloudData.mpfMonthlyRecords = data.mpfMonthlyRecords;
           if (data.customCategories) cloudData.customCategories = data.customCategories;
+          if (data.deletedDefaultCategories) cloudData.deletedDefaultCategories = data.deletedDefaultCategories;
           syncToFirebase();
           alert('匯入並同步至雲端成功！');
         }
