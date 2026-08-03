@@ -425,14 +425,15 @@
     </div>
 
     <!-- 當月實際總結餘版塊 -->
-    <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
+       <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
       <div class="dashboard-header">
         <span class="label">當月實際總結餘 (MOP) [含信用卡還款]</span>
       </div>
       <div class="total-balance" id="month-actual-net-balance">MOP$ 0.00</div>
-      <div class="dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr);">
         <div class="dash-item"><span class="dash-label">實際總收入</span><span class="dash-val income" id="month-actual-income">+MOP$ 0.00</span></div>
-        <div class="dash-item"><span class="dash-label">實際總支出 (支出+還款)</span><span class="dash-val expense" id="month-actual-expense">-MOP$ 0.00</span></div>
+        <div class="dash-item"><span class="dash-label">支出</span><span class="dash-val expense" id="month-actual-expense">-MOP$ 0.00</span></div>
+        <div class="dash-item"><span class="dash-label">信用卡還款</span><span class="dash-val expense" id="month-actual-repay">-MOP$ 0.00</span></div>
       </div>
     </div>
 
@@ -1604,6 +1605,7 @@
     
     let monthActualIncomeMOP = 0;
     let monthActualExpenseMOP = 0;
+    let monthCreditRepayMOP = 0; // 新增：信用卡還款統計
 
     items.forEach(item => {
       if (!item.date) return;
@@ -1626,10 +1628,13 @@
           const toCurr = item.toCurrency || item.currency;
           const toAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
           const transferToMop = convertToMOP(toAmt, toCurr);
-          monthActualExpenseMOP += transferToMop;
+          monthCreditRepayMOP += transferToMop; // 獨立累加還款金額
         }
       }
     });
+
+    // 實際總支出 = 一般支出 + 信用卡還款
+    monthActualExpenseMOP = monthExpenseMOP + monthCreditRepayMOP;
 
     const monthBalanceMOP = monthIncomeMOP - monthExpenseMOP;
     document.getElementById('month-net-balance').textContent = `MOP$ ${monthBalanceMOP.toFixed(2)}`;
@@ -1642,7 +1647,8 @@
     const monthActualNetBalance = monthActualIncomeMOP - monthActualExpenseMOP;
     document.getElementById('month-actual-net-balance').textContent = `MOP$ ${monthActualNetBalance.toFixed(2)}`;
     document.getElementById('month-actual-income').textContent = `+MOP$ ${monthActualIncomeMOP.toFixed(2)}`;
-    document.getElementById('month-actual-expense').textContent = `-MOP$ ${monthActualExpenseMOP.toFixed(2)}`;
+    document.getElementById('month-actual-expense').textContent = `-MOP$ ${monthExpenseMOP.toFixed(2)}`; // 顯示純支出
+    document.getElementById('month-actual-repay').textContent = `-MOP$ ${monthCreditRepayMOP.toFixed(2)}`; // 顯示信用卡還款
   }
 
   function renderCategoryAnalysis(records, selectedMonthVal) {
@@ -2011,7 +2017,7 @@
             <div class="sub"><span>📅 ${item.date}</span> <span class="tag credit-tag">💳 ${item.account || item.toAccount}</span></div>
           </div>
           <div class="item-amount">
-            <span class="amount-text">${item.type === 'transfer' ? '⇄ 还款' : '-'}${curr} $${amt.toFixed(2)}</span>
+            <span class="amount-text">${item.type === 'transfer' ? '⇄ 還款' : '-'}${curr} $${amt.toFixed(2)}</span>
           </div>
         </div>
       `;
