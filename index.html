@@ -395,28 +395,47 @@
     }
     .cat-block .cat-icon { font-size: 16px; line-height: 1; }
     .cat-block .cat-label { font-size: 10px; }
+    
+    /* 刪除分類按鈕樣式 (手機版與電腦版皆適用，且在 hover 或長按/點擊時皆可見) */
     .cat-block .cat-delete-btn {
       position: absolute;
       top: 2px;
       right: 2px;
-      background: rgba(0,0,0,0.2);
+      background: rgba(0,0,0,0.25);
       color: white;
       border: none;
       border-radius: 50%;
-      width: 14px;
-      height: 14px;
-      font-size: 9px;
-      line-height: 14px;
+      width: 16px;
+      height: 16px;
+      font-size: 10px;
+      line-height: 16px;
       text-align: center;
       cursor: pointer;
-      display: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
     }
-    .cat-block:hover .cat-delete-btn {
-      display: block;
+    @media (max-width: 767px) {
+      /* 手機版直接顯示刪除按鈕，方便點擊 */
+      .cat-block .cat-delete-btn {
+        display: flex;
+      }
+    }
+    @media (min-width: 768px) {
+      /* 電腦版維持原本 hover 顯示或直接顯示皆可，這裡讓其平時顯示或 hover 顯示均可，保持直覺 */
+      .cat-block .cat-delete-btn {
+        display: none;
+      }
+      .cat-block:hover .cat-delete-btn {
+        display: flex;
+      }
     }
     .cat-block.active .cat-delete-btn {
       background: rgba(255,255,255,0.4);
+      color: var(--text);
     }
+
     #custom-category-input { display: none; }
     .btn-submit {
       background: var(--primary);
@@ -595,7 +614,7 @@
 </head>
 <body>
 <div class="app-container">
-  <!-- 新增：Google 登入狀態列 -->
+  <!-- Google 登入狀態列 -->
   <div class="auth-bar" id="auth-bar">
     <div class="auth-user-info" id="auth-user-info">
       <span>🔒 請登入以同步個人雲端資料</span>
@@ -1225,7 +1244,7 @@
     baseDefaultCategories.forEach(cat => {
       if (!deletedCats.includes(cat.name)) {
         const isActive = selectedCategoryValue === cat.name ? 'active' : '';
-        const showDelete = cat.name !== '其他'; // 「其他」通常保留不刪除，或者也可以刪除？這裡保留「其他」不可刪或可刪皆可，若要全都能刪除可不設限。為了安全讓「其他」保留，其餘可刪。
+        const showDelete = cat.name !== '其他'; // 「其他」保留不刪除，其餘預設分類皆可刪除
         let deleteBtnHtml = showDelete ? `<button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${cat.name}', true)" title="刪除分類">×</button>` : '';
         html += `<div class="cat-block ${isActive}" data-value="${cat.name}"><span class="cat-icon">${cat.icon}</span><span class="cat-label">${cat.name}</span>${deleteBtnHtml}</div>`;
       }
@@ -1835,7 +1854,6 @@
     const records = loadRecords();
     const todayStr = new Date().toISOString().split('T')[0];
     
-    // 透過新增一筆「收入」或「支出」記錄來達成銀行金額的增加或減少，確保流水帳同步更新且邏輯一致
     const newRecord = {
       id: Date.now().toString(),
       type: actionType === 'add' ? 'income' : 'expense',
