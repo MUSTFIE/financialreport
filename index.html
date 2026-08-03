@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>極簡雲端記帳本</title>
+  <title>雲端記帳本</title>
   <!-- 引入 Firebase SDK (Compat 版本，方便直接嵌入單一 HTML) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <!-- 新增：引入 Firebase Auth SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <style>
     :root {
@@ -43,36 +42,21 @@
     }
     .app-container {
       width: 100%;
-      max-width: 480px; /* 手機預設寬度 */
+      max-width: 480px;
       display: flex;
       flex-direction: column;
       gap: 12px;
       transition: max-width 0.3s ease;
     }
 
-    /* 💻 電腦與平板螢幕響應式優化 (>= 768px) */
     @media (min-width: 768px) {
-      body {
-        padding: 24px 16px 48px 16px;
-      }
-      .app-container {
-        max-width: 768px; /* 電腦版解禁擴寬 */
-      }
-      .nav-btn {
-        font-size: 13px;
-        padding: 10px 4px;
-      }
-      .dashboard .total-balance {
-        font-size: 32px;
-      }
-      .desktop-grid-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
+      body { padding: 24px 16px 48px 16px; }
+      .app-container { max-width: 768px; }
+      .nav-btn { font-size: 13px; padding: 10px 4px; }
+      .dashboard .total-balance { font-size: 32px; }
+      .desktop-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     }
 
-    /* 登入控制列樣式 */
     .auth-bar {
       display: flex;
       justify-content: space-between;
@@ -83,13 +67,7 @@
       border: 1px solid var(--border);
       font-size: 12px;
     }
-    .auth-user-info {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--muted);
-      font-weight: 600;
-    }
+    .auth-user-info { display: flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; }
     .btn-auth {
       background: var(--primary);
       color: white;
@@ -101,17 +79,10 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-    .btn-auth:hover {
-      background: var(--primary-dark);
-    }
-    .btn-auth.logout {
-      background: #EF4444;
-    }
-    .btn-auth.logout:hover {
-      background: #DC2626;
-    }
+    .btn-auth:hover { background: var(--primary-dark); }
+    .btn-auth.logout { background: #EF4444; }
+    .btn-auth.logout:hover { background: #DC2626; }
 
-    /* 頂部頁籤選單（手機版更好按） */
     .nav-tabs {
       display: flex;
       background: #E2E8F0;
@@ -139,14 +110,8 @@
       color: var(--primary);
       box-shadow: 0 2px 4px rgba(0,0,0,0.06);
     }
-    .tab-content {
-      display: none;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .tab-content.active {
-      display: flex;
-    }
+    .tab-content { display: none; flex-direction: column; gap: 12px; }
+    .tab-content.active { display: flex; }
     .sync-status {
       text-align: center;
       font-size: 11px;
@@ -171,21 +136,9 @@
       border-radius: 16px;
       box-shadow: 0 8px 12px -3px rgba(99, 102, 241, 0.2);
     }
-    .dashboard-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2px;
-    }
-    .dashboard .label {
-      font-size: 12px;
-      opacity: 0.9;
-    }
-    .controls-group {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .dashboard .label { font-size: 12px; opacity: 0.9; }
+    .controls-group { display: flex; gap: 6px; align-items: center; }
     .picker-dashboard {
       background: rgba(255, 255, 255, 0.2);
       color: white;
@@ -196,10 +149,7 @@
       outline: none;
       cursor: pointer;
     }
-    .picker-dashboard option {
-      color: var(--text);
-      background: white;
-    }
+    .picker-dashboard option { color: var(--text); background: white; }
     .btn-export {
       background: rgba(255, 255, 255, 0.25);
       color: white;
@@ -210,11 +160,7 @@
       font-weight: 600;
       cursor: pointer;
     }
-    .dashboard .total-balance {
-      font-size: 26px;
-      font-weight: 700;
-      margin: 4px 0 12px 0;
-    }
+    .dashboard .total-balance { font-size: 26px; font-weight: 700; margin: 4px 0 12px 0; }
     .dashboard-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -222,23 +168,10 @@
       border-top: 1px solid rgba(255, 255, 255, 0.2);
       padding-top: 10px;
     }
-    .dashboard-grid-4 {
-      grid-template-columns: repeat(2, 1fr);
-      row-gap: 10px;
-    }
-    .dash-item {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .dash-label {
-      font-size: 10px;
-      opacity: 0.85;
-    }
-    .dash-val {
-      font-size: 13px;
-      font-weight: 700;
-    }
+    .dashboard-grid-4 { grid-template-columns: repeat(2, 1fr); row-gap: 10px; }
+    .dash-item { display: flex; flex-direction: column; gap: 2px; }
+    .dash-label { font-size: 10px; opacity: 0.85; }
+    .dash-val { font-size: 13px; font-weight: 700; }
     .dash-val.income { color: #A7F3D0; }
     .dash-val.expense { color: #FECACA; }
     .dash-val.highlight { color: #FDE047; }
@@ -266,47 +199,13 @@
       font-size: 11px;
       outline: none;
     }
-    .category-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .cat-progress-item {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: 12px;
-    }
-    .cat-progress-info {
-      display: flex;
-      justify-content: space-between;
-      font-weight: 600;
-      align-items: center;
-    }
-    .cat-progress-bar-bg {
-      background: #F1F5F9;
-      border-radius: 4px;
-      height: 6px;
-      width: 100%;
-      overflow: hidden;
-    }
-    .cat-progress-bar-fill {
-      background: var(--primary);
-      height: 100%;
-      border-radius: 4px;
-    }
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .type-toggle {
-      display: flex;
-      background: #F1F5F9;
-      padding: 3px;
-      border-radius: 10px;
-      gap: 2px;
-    }
+    .category-list { display: flex; flex-direction: column; gap: 8px; }
+    .cat-progress-item { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+    .cat-progress-info { display: flex; justify-content: space-between; font-weight: 600; align-items: center; }
+    .cat-progress-bar-bg { background: #F1F5F9; border-radius: 4px; height: 6px; width: 100%; overflow: hidden; }
+    .cat-progress-bar-fill { background: var(--primary); height: 100%; border-radius: 4px; }
+    .form-group { display: flex; flex-direction: column; gap: 10px; }
+    .type-toggle { display: flex; background: #F1F5F9; padding: 3px; border-radius: 10px; gap: 2px; }
     .type-btn {
       flex: 1;
       border: none;
@@ -322,10 +221,7 @@
     .type-btn.active[data-type="expense"] { background: var(--expense); color: white; }
     .type-btn.active[data-type="income"] { background: var(--income); color: white; }
     .type-btn.active[data-type="transfer"] { background: var(--transfer); color: white; }
-    .input-row {
-      display: flex;
-      gap: 6px;
-    }
+    .input-row { display: flex; gap: 6px; }
     input, select {
       width: 100%;
       padding: 10px 12px;
@@ -335,39 +231,12 @@
       outline: none;
       background-color: #FAFAFA;
     }
-    input:focus, select:focus {
-      border-color: var(--primary);
-      background-color: #FFF;
-    }
-    .bind-tip {
-      font-size: 11px;
-      color: #0284C7;
-      background: #E0F2FE;
-      padding: 6px 10px;
-      border-radius: 6px;
-      display: none;
-    }
-    .category-grid-container {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .category-grid-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-    }
-    .category-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      width: 100%;
-    }
-    @media (min-width: 768px) {
-      .category-grid {
-        grid-template-columns: repeat(6, 1fr);
-      }
-    }
+    input:focus, select:focus { border-color: var(--primary); background-color: #FFF; }
+    .bind-tip { font-size: 11px; color: #0284C7; background: #E0F2FE; padding: 6px 10px; border-radius: 6px; display: none; }
+    .category-grid-container { display: flex; flex-direction: column; gap: 4px; }
+    .category-grid-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+    @media (min-width: 768px) { .category-grid { grid-template-columns: repeat(6, 1fr); } }
     .cat-block {
       background: #F8FAFC;
       border: 1px solid var(--border);
@@ -384,9 +253,7 @@
       transition: all 0.15s ease;
       position: relative;
     }
-    .cat-block:hover {
-      border-color: var(--primary);
-    }
+    .cat-block:hover { border-color: var(--primary); }
     .cat-block.active {
       background: var(--primary);
       color: white;
@@ -396,7 +263,6 @@
     }
     .cat-block .cat-icon { font-size: 16px; line-height: 1; }
     .cat-block .cat-label { font-size: 10px; }
-    
     .cat-block .cat-delete-btn {
       position: absolute;
       top: 2px;
@@ -416,18 +282,12 @@
       justify-content: center;
       z-index: 2;
     }
-    @media (max-width: 767px) {
-      .cat-block .cat-delete-btn { display: flex; }
-    }
+    @media (max-width: 767px) { .cat-block .cat-delete-btn { display: flex; } }
     @media (min-width: 768px) {
       .cat-block .cat-delete-btn { display: none; }
       .cat-block:hover .cat-delete-btn { display: flex; }
     }
-    .cat-block.active .cat-delete-btn {
-      background: rgba(255,255,255,0.4);
-      color: var(--text);
-    }
-
+    .cat-block.active .cat-delete-btn { background: rgba(255,255,255,0.4); color: var(--text); }
     #custom-category-input { display: none; }
     .btn-submit {
       background: var(--primary);
@@ -440,14 +300,8 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-    .btn-submit:hover {
-      background: var(--primary-dark);
-    }
-    .transaction-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    .btn-submit:hover { background: var(--primary-dark); }
+    .transaction-list { display: flex; flex-direction: column; gap: 8px; }
     .item {
       display: flex;
       justify-content: space-between;
@@ -461,154 +315,38 @@
     .item.expense { border-left-color: var(--expense); }
     .item.transfer { border-left-color: var(--transfer); }
     .item-info .title { font-weight: 600; font-size: 13px; }
-    .item-info .sub {
-      font-size: 10px;
-      color: var(--muted);
-      margin-top: 2px;
-      display: flex;
-      gap: 4px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .tag {
-      background: #E2E8F0;
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
+    .item-info .sub { font-size: 10px; color: var(--muted); margin-top: 2px; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .tag { background: #E2E8F0; padding: 1px 4px; border-radius: 4px; }
     .tag.bank-deduct { background: #E0F2FE; color: #0369A1; font-weight: 600; }
     .tag.transfer-tag { background: #EDE9FE; color: #6D28D9; font-weight: 600; }
     .tag.credit-tag { background: #FCE7F3; color: #BE185D; font-weight: 600; }
-    .item-amount {
-      font-weight: 700;
-      font-size: 13px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 1px;
-    }
+    .item-amount { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-weight: 700; font-size: 13px; }
     .item-amount-row { display: flex; align-items: center; gap: 6px; }
     .item.income .amount-text { color: var(--income); }
     .item.expense .amount-text { color: var(--expense); }
     .item.transfer .amount-text { color: var(--transfer); }
     .mop-converted { font-size: 10px; color: var(--muted); font-weight: 400; }
-    .btn-delete {
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 13px;
-      padding: 2px 4px;
-    }
+    .btn-delete { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
     .empty-state { text-align: center; color: var(--muted); padding: 12px 0; font-size: 12px; }
-    .bank-card {
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
-    }
-    .bank-card-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #0369A1;
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .credit-card-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #BE185D;
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .bank-currency-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .curr-item {
-      background: #FFF;
-      padding: 6px 8px;
-      border-radius: 6px;
-      border: 1px solid #E2E8F0;
-      display: flex;
-      flex-direction: column;
-    }
+    .bank-card { background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .bank-card-title { font-size: 13px; font-weight: 700; color: #0369A1; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .credit-card-title { font-size: 13px; font-weight: 700; color: #BE185D; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .bank-currency-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .curr-item { background: #FFF; padding: 6px 8px; border-radius: 6px; border: 1px solid #E2E8F0; display: flex; flex-direction: column; }
     .curr-name { font-size: 10px; color: var(--muted); }
     .curr-val { font-size: 13px; font-weight: 700; color: var(--text); }
     .interest-note { font-size: 10px; color: #10B981; margin-top: 4px; font-weight: 600; }
-    .bank-edit-group {
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .bank-edit-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
+    .bank-edit-group { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .bank-edit-row { display: flex; gap: 6px; align-items: center; }
     .bank-edit-row select { width: 90px; padding: 6px; font-size: 11px; }
     .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 11px; }
-    .btn-sm-save {
-      background: var(--bank);
-      color: white;
-      border: none;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      cursor: pointer;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .btn-sm-sub {
-      background: var(--expense);
-      color: white;
-      border: none;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      cursor: pointer;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .backup-tools {
-      display: flex;
-      justify-content: space-between;
-      gap: 6px;
-      margin-top: 6px;
-    }
-    .btn-sub-action {
-      flex: 1;
-      padding: 8px;
-      font-size: 11px;
-      background: #E2E8F0;
-      color: var(--text);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      text-align: center;
-      transition: background 0.2s;
-    }
-    .btn-sub-action:hover {
-      background: #CBD5E1;
-    }
-    .mpf-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-      margin-top: 6px;
-    }
-    .mpf-table th, .mpf-table td {
-      border: 1px solid var(--border);
-      padding: 6px 4px;
-      text-align: center;
-    }
+    .btn-sm-save { background: var(--bank); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .btn-sm-sub { background: var(--expense); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .backup-tools { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; }
+    .btn-sub-action { flex: 1; padding: 8px; font-size: 11px; background: #E2E8F0; color: var(--text); border: none; border-radius: 8px; cursor: pointer; font-weight: 600; text-align: center; transition: background 0.2s; }
+    .btn-sub-action:hover { background: #CBD5E1; }
+    .mpf-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    .mpf-table th, .mpf-table td { border: 1px solid var(--border); padding: 6px 4px; text-align: center; }
     .mpf-table th { background: #F1F5F9; font-weight: 700; color: var(--muted); }
     .mpf-diff-positive { color: var(--income); font-weight: 700; }
     .mpf-diff-negative { color: var(--expense); font-weight: 700; }
@@ -634,12 +372,8 @@
     <button class="nav-btn" id="btn-tab-mpf" onclick="switchTab('mpf')">🛡️ 強積金</button>
     <button class="nav-btn" id="btn-tab-asset" onclick="switchTab('asset')">💎 總資產</button>
   </div>
-  <div class="sync-status" id="sync-status-badge">
-    ☁️ 等待 Firebase 登入驗證...
-  </div>
-  <div class="rate-badge">
-    💱 匯率基準：1 HKD = 1.03 MOP ｜ 1 CNY = 1.13 MOP
-  </div>
+  <div class="sync-status" id="sync-status-badge">☁️ 等待 Firebase 登入驗證...</div>
+  <div class="rate-badge">💱 匯率基準：1 HKD = 1.0314 MOP ｜ 1 CNY = 1.13 MOP</div>
 
   <!-- 1. 月度記帳頁面 -->
   <div id="tab-monthly-content" class="tab-content active">
@@ -653,22 +387,12 @@
       </div>
       <div class="total-balance" id="month-net-balance">MOP$ 0</div>
       <div class="dashboard-grid">
-        <div class="dash-item">
-          <span class="dash-label">當月總收入</span>
-          <span class="dash-val income" id="month-income">+MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">當月總支出</span>
-          <span class="dash-val expense" id="month-expense">-MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">日平均支出</span>
-          <span class="dash-val" id="month-daily-avg">MOP$ 0/日</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">當月總收入</span><span class="dash-val income" id="month-income">+MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">當月總支出</span><span class="dash-val expense" id="month-expense">-MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">日平均支出</span><span class="dash-val" id="month-daily-avg">MOP$ 0/日</span></div>
       </div>
     </div>
 
-    <!-- 電腦版排版區塊優化 -->
     <div class="desktop-grid-2">
       <div class="card">
         <div class="card-title">✏️ 新增記帳</div>
@@ -680,15 +404,27 @@
           </div>
           <div class="input-row">
             <input type="date" id="date" required>
-            <select id="currency" style="width: 110px;" required>
+            <select id="currency" style="width: 110px;" required onchange="autoCalculateTransferToAmount()">
               <option value="MOP" selected>MOP</option>
               <option value="HKD">HKD</option>
               <option value="CNY">CNY</option>
             </select>
           </div>
           <div class="input-row">
-            <input type="number" id="amount" placeholder="金額" step="any" required>
+            <input type="number" id="amount" placeholder="金額" step="0.001" required oninput="autoCalculateTransferToAmount()">
           </div>
+
+          <!-- 新增：跨幣種轉帳目標幣種與金額列 -->
+          <div class="input-row" id="row-transfer-target" style="display: none; align-items: center; background: #F3E8FF; padding: 8px; border-radius: 10px;">
+            <span style="font-size: 11px; font-weight: bold; color: #6D28D9; white-space: nowrap;">轉入金額：</span>
+            <select id="to-currency" style="width: 100px;" onchange="autoCalculateTransferToAmount()">
+              <option value="MOP">MOP</option>
+              <option value="HKD" selected>HKD</option>
+              <option value="CNY">CNY</option>
+            </select>
+            <input type="number" id="to-amount" placeholder="到帳金額" step="0.001">
+          </div>
+
           <div class="input-row" id="row-single-account">
             <select id="account" required onchange="checkAccountAutoBind()">
               <option value="" disabled selected>選擇支付方式/戶口</option>
@@ -715,38 +451,14 @@
           <div class="input-row" id="row-transfer-accounts" style="display: none;">
             <select id="from-account">
               <option value="" disabled selected>轉出戶口</option>
-              <option value="MPay">MPay</option>
-              <option value="BOC Pay">BOC Pay</option>
-              <option value="澳門螞蟻銀行">澳門螞蟻</option>
-              <option value="澳門中國銀行">澳門中銀</option>
-              <option value="澳門工商銀行">澳門工銀</option>
-              <option value="澳門發展銀行">澳門發展</option>
-              <option value="香港恒生銀行">香港恒生</option>
-              <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
-              <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
-              <option value="DBS(信用卡)">DBS (信用卡)</option>
-              <option value="AE(信用卡)">AE (信用卡)</option>
             </select>
             <select id="to-account">
               <option value="" disabled selected>轉入戶口</option>
-              <option value="MPay">MPay</option>
-              <option value="BOC Pay">BOC Pay</option>
-              <option value="澳門螞蟻銀行">澳門螞蟻</option>
-              <option value="澳門中國銀行">澳門中銀</option>
-              <option value="澳門工商銀行">澳門工銀</option>
-              <option value="澳門發展銀行">澳門發展</option>
-              <option value="香港恒生銀行">香港恒生</option>
-              <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
-              <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
-              <option value="DBS(信用卡)">DBS (信用卡)</option>
-              <option value="AE(信用卡)">AE (信用卡)</option>
             </select>
           </div>
           <div class="category-grid-container" id="row-category">
             <span class="category-grid-label">選擇分類：</span>
-            <div class="category-grid" id="category-grid">
-              <!-- 動態渲染分類方塊 -->
-            </div>
+            <div class="category-grid" id="category-grid"></div>
           </div>
           <input type="text" id="custom-category-input" placeholder="請輸入自訂類別名稱">
           <input type="text" id="note" placeholder="備註（可填）">
@@ -768,23 +480,8 @@
       <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
         <span>當月紀錄明細</span>
         <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
-          <select id="filter-category" class="sort-select" onchange="renderApp()">
-            <option value="ALL">全部類別</option>
-          </select>
-          <select id="filter-account-monthly" class="sort-select" onchange="renderApp()">
-            <option value="ALL">全部支出戶口</option>
-            <option value="MPay">MPay</option>
-            <option value="BOC Pay">BOC Pay</option>
-            <option value="澳門螞蟻銀行">澳門螞蟻銀行</option>
-            <option value="澳門中國銀行">澳門中國銀行</option>
-            <option value="澳門工商銀行">澳門工商銀行</option>
-            <option value="澳門發展銀行">澳門發展銀行</option>
-            <option value="香港恒生銀行">香港恒生銀行</option>
-            <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
-            <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
-            <option value="DBS(信用卡)">DBS (信用卡)</option>
-            <option value="AE(信用卡)">AE (信用卡)</option>
-          </select>
+          <select id="filter-category" class="sort-select" onchange="renderApp()"><option value="ALL">全部類別</option></select>
+          <select id="filter-account-monthly" class="sort-select" onchange="renderApp()"><option value="ALL">全部支出戶口</option></select>
           <select id="sort-order" class="sort-select">
             <option value="desc" selected>最新 ➔ 最舊</option>
             <option value="asc">最舊 ➔ 最新</option>
@@ -815,22 +512,10 @@
       </div>
       <div class="total-balance" id="year-net-balance">MOP$ 0</div>
       <div class="dashboard-grid dashboard-grid-4">
-        <div class="dash-item">
-          <span class="dash-label">年度總收入</span>
-          <span class="dash-val income" id="year-income">+MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">年度總支出</span>
-          <span class="dash-val expense" id="year-expense">-MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">平均月支出</span>
-          <span class="dash-val" id="year-monthly-avg-expense">MOP$ 0/月</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">年度總儲蓄率</span>
-          <span class="dash-val highlight" id="year-savings-rate">0%</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">年度總收入</span><span class="dash-val income" id="year-income">+MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">年度總支出</span><span class="dash-val expense" id="year-expense">-MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">平均月支出</span><span class="dash-val" id="year-monthly-avg-expense">MOP$ 0/月</span></div>
+        <div class="dash-item"><span class="dash-label">年度總儲蓄率</span><span class="dash-val highlight" id="year-savings-rate">0%</span></div>
       </div>
     </div>
     <div class="desktop-grid-2">
@@ -839,12 +524,7 @@
         <div style="overflow-x: auto;">
           <table class="mpf-table" id="yearly-months-table">
             <thead>
-              <tr>
-                <th>月份</th>
-                <th>收入 (MOP)</th>
-                <th>支出 (MOP)</th>
-                <th>結餘 (MOP)</th>
-              </tr>
+              <tr><th>月份</th><th>收入 (MOP)</th><th>支出 (MOP)</th><th>結餘 (MOP)</th></tr>
             </thead>
             <tbody id="yearly-months-tbody">
               <tr><td colspan="4" class="empty-state">尚無數據</td></tr>
@@ -864,29 +544,17 @@
   <!-- 3. 獨立銀行戶口與流水帳頁面 -->
   <div id="tab-bank-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #0284C7, #0369A1);">
-      <div class="dashboard-header">
-        <span class="label">銀行存款總額 (折合 MOP)</span>
-      </div>
+      <div class="dashboard-header"><span class="label">銀行存款總額 (折合 MOP)</span></div>
       <div class="total-balance" id="bank-total-balance">MOP$ 0</div>
       <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="dash-item">
-          <span class="dash-label">MOP 總額</span>
-          <span class="dash-val highlight" id="bank-total-mop">MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">HKD 總額</span>
-          <span class="dash-val highlight" id="bank-total-hkd">HK$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">CNY 總額</span>
-          <span class="dash-val highlight" id="bank-total-cny">CN¥ 0</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">MOP 總額</span><span class="dash-val highlight" id="bank-total-mop">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">HKD 總額</span><span class="dash-val highlight" id="bank-total-hkd">HK$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">CNY 總額</span><span class="dash-val highlight" id="bank-total-cny">CN¥ 0</span></div>
       </div>
     </div>
     <div class="desktop-grid-2">
       <div class="card">
         <div class="card-title">🏛️ 銀行戶口金額管理</div>
-        <!-- 新增：新增銀行戶口表單 -->
         <div class="bank-card" style="background: #F1F5F9; border-style: dashed;">
           <div class="bank-card-title"><span>➕ 新增自訂銀行戶口</span></div>
           <div class="bank-edit-group">
@@ -903,13 +571,7 @@
           <span>📜 銀行專屬流水帳</span>
           <div style="display: flex; gap: 4px; flex-wrap: wrap;">
             <input type="month" id="bank-flow-month" class="sort-select" style="width: auto; padding: 4px;" onchange="renderBankFlowList()">
-            <select id="bank-flow-select" class="sort-select" onchange="renderBankFlowList()">
-              <option value="澳門螞蟻銀行">澳門螞蟻</option>
-              <option value="澳門中國銀行">澳門中銀</option>
-              <option value="澳門工商銀行">澳門工銀</option>
-              <option value="澳門發展銀行">澳門發展</option>
-              <option value="香港恒生銀行">香港恒生</option>
-            </select>
+            <select id="bank-flow-select" class="sort-select" onchange="renderBankFlowList()"></select>
             <select id="bank-flow-curr" class="sort-select" onchange="renderBankFlowList()">
               <option value="ALL">全部幣種</option>
               <option value="MOP">MOP</option>
@@ -926,19 +588,11 @@
   <!-- 4. 信用卡頁面 -->
   <div id="tab-credit-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #D946EF, #BE185D);">
-      <div class="dashboard-header">
-        <span class="label">信用卡未清帳款總額 (折合 MOP)</span>
-      </div>
+      <div class="dashboard-header"><span class="label">信用卡未清帳款總額 (折合 MOP)</span></div>
       <div class="total-balance" id="credit-total-balance">MOP$ 0</div>
       <div class="dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
-        <div class="dash-item">
-          <span class="dash-label">管理卡片數量</span>
-          <span class="dash-val highlight" id="credit-card-count">4 張</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">當月刷卡消費總額</span>
-          <span class="dash-val expense" id="credit-month-spend">MOP$ 0</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">管理卡片數量</span><span class="dash-val highlight" id="credit-card-count">4 張</span></div>
+        <div class="dash-item"><span class="dash-label">當月刷卡消費總額</span><span class="dash-val expense" id="credit-month-spend">MOP$ 0</span></div>
       </div>
     </div>
     <div class="desktop-grid-2">
@@ -965,23 +619,12 @@
   <!-- 5. 強積金 (MPF) 頁面 -->
   <div id="tab-mpf-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
-      <div class="dashboard-header">
-        <span class="label">強積金總餘額 (HKD)</span>
-      </div>
+      <div class="dashboard-header"><span class="label">強積金總餘額 (HKD)</span></div>
       <div class="total-balance" id="mpf-total-balance">HK$ 0</div>
       <div class="dashboard-grid">
-        <div class="dash-item">
-          <span class="dash-label">戶口總數</span>
-          <span class="dash-val income" id="mpf-account-count">0 個</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">最近變動額</span>
-          <span class="dash-val highlight" id="mpf-month-growth">HK$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">記錄月份</span>
-          <span class="dash-val" id="mpf-latest-month-label">-</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">戶口總數</span><span class="dash-val income" id="mpf-account-count">0 個</span></div>
+        <div class="dash-item"><span class="dash-label">最近變動額</span><span class="dash-val highlight" id="mpf-month-growth">HK$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">記錄月份</span><span class="dash-val" id="mpf-latest-month-label">-</span></div>
       </div>
     </div>
     <div class="desktop-grid-2">
@@ -992,7 +635,7 @@
             <input type="text" id="new-mpf-acc-name" placeholder="帳戶名稱 (例: 宏利主戶口)">
           </div>
           <div class="bank-edit-row" style="margin-top: 4px;">
-            <input type="number" id="new-mpf-acc-balance" placeholder="初始總餘額 (HKD)" step="any">
+            <input type="number" id="new-mpf-acc-balance" placeholder="初始總餘額 (HKD)" step="0.001">
             <button type="button" class="btn-sm-save" style="background: #059669;" onclick="addMPFAccount()">新增帳戶</button>
           </div>
         </div>
@@ -1008,8 +651,8 @@
             </select>
           </div>
           <div class="input-row">
-            <input type="number" id="mpf-rec-balance" placeholder="月末結餘 (HKD)" step="any" required>
-            <input type="number" id="mpf-rec-contrib" placeholder="供款 (可選)" step="any">
+            <input type="number" id="mpf-rec-balance" placeholder="月末結餘 (HKD)" step="0.001" required>
+            <input type="number" id="mpf-rec-contrib" placeholder="供款 (可選)" step="0.001">
           </div>
           <button type="button" class="btn-submit" style="background: #059669;" onclick="saveMPFMonthlyRecord()">儲存月度結餘</button>
         </form>
@@ -1018,21 +661,11 @@
     <div class="card">
       <div class="card-title" style="flex-wrap: wrap; gap: 6px;">
         <span>📊 戶口每月漲跌變動</span>
-        <select id="mpf-filter-account" class="sort-select" onchange="renderMPFSection()">
-          <option value="ALL">全部總覽</option>
-        </select>
       </div>
       <div style="overflow-x: auto;">
         <table class="mpf-table" id="mpf-comparison-table">
           <thead>
-            <tr>
-              <th>月份</th>
-              <th>戶口</th>
-              <th>結餘 (HKD)</th>
-              <th>供款</th>
-              <th>月漲跌變動</th>
-              <th>操作</th>
-            </tr>
+            <tr><th>月份</th><th>戶口</th><th>結餘 (HKD)</th><th>供款</th><th>月漲跌變動</th><th>操作</th></tr>
           </thead>
           <tbody id="mpf-comparison-tbody">
             <tr><td colspan="6" class="empty-state">尚無變動紀錄</td></tr>
@@ -1045,23 +678,12 @@
   <!-- 6. 總資產頁面 -->
   <div id="tab-asset-content" class="tab-content">
     <div class="dashboard" style="background: linear-gradient(135deg, #D97706, #B45309);">
-      <div class="dashboard-header">
-        <span class="label">淨總資產總額 (折合 MOP)</span>
-      </div>
+      <div class="dashboard-header"><span class="label">淨總資產總額 (折合 MOP)</span></div>
       <div class="total-balance" id="asset-grand-total">MOP$ 0</div>
       <div class="dashboard-grid">
-        <div class="dash-item">
-          <span class="dash-label">銀行存款總計</span>
-          <span class="dash-val income" id="asset-bank-val">MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">強積金總計</span>
-          <span class="dash-val highlight" id="asset-mpf-val">MOP$ 0</span>
-        </div>
-        <div class="dash-item">
-          <span class="dash-label">資產板塊</span>
-          <span class="dash-val">2 大板塊</span>
-        </div>
+        <div class="dash-item"><span class="dash-label">銀行存款總計</span><span class="dash-val income" id="asset-bank-val">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">強積金總計</span><span class="dash-val highlight" id="asset-mpf-val">MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">資產板塊</span><span class="dash-val">2 大板塊</span></div>
       </div>
     </div>
     <div class="desktop-grid-2">
@@ -1074,7 +696,7 @@
               <option value="HKD">HKD</option>
               <option value="CNY">CNY</option>
             </select>
-            <input type="number" id="asset-deduct-amt" placeholder="輸入扣減金額" step="any">
+            <input type="number" id="asset-deduct-amt" placeholder="輸入扣減金額" step="0.001">
           </div>
           <input type="text" id="asset-deduct-note" placeholder="扣減備註 (例如：手續費、減值等)">
           <button type="button" class="btn-submit" style="background: var(--asset);" onclick="executeGlobalAssetDeduct()">確認扣減總資產</button>
@@ -1105,9 +727,7 @@
 </div>
 
 <script>
-  // ==========================================
-  // Firebase 專案設定
-  // ==========================================
+  // Firebase 設定
   const firebaseConfig = {
     apiKey: "AIzaSyDARQel_FE1owKu7vcwj5Vb2mQQPHbdJUg",
     authDomain: "budget-tracker-f6987.firebaseapp.com",
@@ -1127,7 +747,7 @@
 
   let cloudData = {
     records: [],
-    customBankList: [], // 新增：自訂銀行戶口清單
+    customBankList: [],
     bankBaseBalances: {
       '澳門螞蟻銀行': { MOP: 0, HKD: 0, CNY: 0 },
       '澳門中國銀行': { MOP: 0, HKD: 0, CNY: 0 },
@@ -1151,7 +771,7 @@
     deletedDefaultCategories: []
   };
 
-  const EXCHANGE_RATES = { MOP: 1.0, HKD: 1.03, CNY: 1.13 };
+  const EXCHANGE_RATES = { MOP: 1.0, HKD: 1.0314, CNY: 1.13 };
   const BINDING_MAP = { 'MPay': '澳門螞蟻銀行', 'BOC Pay': '澳門中國銀行' };
   const DEFAULT_BANK_LIST = ['澳門螞蟻銀行', '澳門中國銀行', '澳門工商銀行', '澳門發展銀行', '香港恒生銀行'];
   
@@ -1162,23 +782,15 @@
 
   const CREDIT_LIST = ['澳門中國銀行(信用卡)', '香港中國銀行(信用卡)', 'DBS(信用卡)', 'AE(信用卡)'];
 
-  // ==========================================
-  // Firebase Auth 登入與狀態監聽
-  // ==========================================
   function loginWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider).catch((error) => {
-      console.error("登入失敗: ", error);
       alert("Google 登入失敗：" + error.message);
     });
   }
 
   function logout() {
-    auth.signOut().then(() => {
-      window.location.reload();
-    }).catch((error) => {
-      console.error("登出失敗: ", error);
-    });
+    auth.signOut().then(() => { window.location.reload(); });
   }
 
   auth.onAuthStateChanged((user) => {
@@ -1186,9 +798,7 @@
     const actionContainerEl = document.getElementById('auth-action-container');
     const syncBadge = document.getElementById('sync-status-badge');
 
-    if (dbRef && dbListener) {
-      dbRef.off('value', dbListener);
-    }
+    if (dbRef && dbListener) { dbRef.off('value', dbListener); }
 
     if (user) {
       userInfoEl.innerHTML = `
@@ -1216,9 +826,6 @@
           syncToFirebase();
         }
         renderApp();
-      }, (error) => {
-        console.error("Firebase Sync Error: ", error);
-        syncBadge.textContent = '⚠️ 雲端即時連線異常';
       });
 
     } else {
@@ -1253,12 +860,7 @@
   function loadCustomCategories() { return cloudData.customCategories || []; }
   function loadDeletedDefaultCategories() { return cloudData.deletedDefaultCategories || []; }
   function loadBankBaseBalances() { return cloudData.bankBaseBalances; }
-  function loadCreditBaseBalances() { return cloudData.creditBaseBalances || {
-    '澳門中國銀行(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-    '香港中國銀行(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-    'DBS(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-    'AE(信用卡)': { MOP: 0, HKD: 0, CNY: 0 }
-  }; }
+  function loadCreditBaseBalances() { return cloudData.creditBaseBalances; }
   function loadGlobalDeductions() { return cloudData.globalDeductions || []; }
   function loadMPFAccountsData() { return cloudData.mpfAccounts || []; }
   function loadMPFMonthlyRecordsData() { return cloudData.mpfMonthlyRecords || []; }
@@ -1270,11 +872,6 @@
       badge.textContent = '☁️ 雲端同步完成 (實時多機互聯)';
       badge.style.background = '#D1FAE5';
       badge.style.color = '#065F46';
-    }).catch(err => {
-      const badge = document.getElementById('sync-status-badge');
-      badge.textContent = '⚠️ 雲端同步失敗，請檢查網路或設定';
-      badge.style.background = '#FEE2E2';
-      badge.style.color = '#991B1B';
     });
   }
 
@@ -1322,6 +919,21 @@
     }
   }
 
+  // 自動依匯率換算轉入金額
+  function autoCalculateTransferToAmount() {
+    if (currentType !== 'transfer') return;
+    const fromCurr = document.getElementById('currency').value;
+    const fromAmt = parseFloat(document.getElementById('amount').value);
+    const toCurr = document.getElementById('to-currency').value;
+    const toAmtInput = document.getElementById('to-amount');
+
+    if (!isNaN(fromAmt) && fromAmt > 0) {
+      const mopVal = convertToMOP(fromAmt, fromCurr);
+      const calculatedToVal = mopVal / EXCHANGE_RATES[toCurr];
+      toAmtInput.value = parseFloat(calculatedToVal.toFixed(3));
+    }
+  }
+
   let selectedCategoryValue = '';
   const customCategoryInput = document.getElementById('custom-category-input');
   
@@ -1341,14 +953,14 @@
       if (!deletedCats.includes(cat.name)) {
         const isActive = selectedCategoryValue === cat.name ? 'active' : '';
         const showDelete = cat.name !== '其他';
-        let deleteBtnHtml = showDelete ? `<button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${cat.name}', true)" title="刪除分類">×</button>` : '';
+        let deleteBtnHtml = showDelete ? `<button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${cat.name}', true)">×</button>` : '';
         html += `<div class="cat-block ${isActive}" data-value="${cat.name}"><span class="cat-icon">${cat.icon}</span><span class="cat-label">${cat.name}</span>${deleteBtnHtml}</div>`;
       }
     });
 
     customCats.forEach(catName => {
       const isActive = selectedCategoryValue === catName ? 'active' : '';
-      html += `<div class="cat-block ${isActive}" data-value="${catName}"><span class="cat-icon">📌</span><span class="cat-label">${catName}</span><button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${catName}', false)" title="刪除分類">×</button></div>`;
+      html += `<div class="cat-block ${isActive}" data-value="${catName}"><span class="cat-icon">📌</span><span class="cat-label">${catName}</span><button type="button" class="cat-delete-btn" onclick="deleteCategory(event, '${catName}', false)">×</button></div>`;
     });
 
     grid.innerHTML = html;
@@ -1374,13 +986,11 @@
   function deleteCategory(event, catName, isDefault) {
     event.stopPropagation();
     if (!confirm(`確定要刪除支付分類「${catName}」嗎？`)) return;
-    
     if (selectedCategoryValue === catName) {
       selectedCategoryValue = '';
       customCategoryInput.style.display = 'none';
       customCategoryInput.required = false;
     }
-
     if (isDefault) {
       let deletedCats = loadDeletedDefaultCategories();
       if (!deletedCats.includes(catName)) {
@@ -1399,6 +1009,7 @@
   const btnTransfer = document.getElementById('btn-transfer');
   const rowSingleAccount = document.getElementById('row-single-account');
   const rowTransferAccounts = document.getElementById('row-transfer-accounts');
+  const rowTransferTarget = document.getElementById('row-transfer-target');
   const rowCategory = document.getElementById('row-category');
   
   btnExpense.addEventListener('click', () => setType('expense'));
@@ -1413,19 +1024,24 @@
     if (type === 'transfer') {
       rowSingleAccount.style.display = 'none';
       rowTransferAccounts.style.display = 'flex';
+      rowTransferTarget.style.display = 'flex';
       rowCategory.style.display = 'none';
       customCategoryInput.style.display = 'none';
       document.getElementById('bind-tip-box').style.display = 'none';
       document.getElementById('account').required = false;
       document.getElementById('from-account').required = true;
       document.getElementById('to-account').required = true;
+      document.getElementById('amount').placeholder = "轉出金額";
+      autoCalculateTransferToAmount();
     } else {
       rowSingleAccount.style.display = 'flex';
       rowTransferAccounts.style.display = 'none';
+      rowTransferTarget.style.display = 'none';
       rowCategory.style.display = 'flex';
       document.getElementById('account').required = true;
       document.getElementById('from-account').required = false;
       document.getElementById('to-account').required = false;
+      document.getElementById('amount').placeholder = "金額";
       checkAccountAutoBind();
     }
   }
@@ -1439,16 +1055,26 @@
     const currency = document.getElementById('currency').value;
     const amount = parseFloat(document.getElementById('amount').value);
     const note = document.getElementById('note').value.trim();
+
     if (!recordDate || isNaN(amount) || amount <= 0) {
       alert('請輸入有效的日期與金額！');
       return;
     }
+
     let accountVal = '', fromAccountVal = '', toAccountVal = '', finalCategory = '';
+    let fromCurr = currency, fromAmt = amount, toCurr = currency, toAmt = amount;
+
     if (currentType === 'transfer') {
       fromAccountVal = document.getElementById('from-account').value;
       toAccountVal = document.getElementById('to-account').value;
       if (!fromAccountVal || !toAccountVal || fromAccountVal === toAccountVal) {
         alert('請選擇正確且不同的轉出與轉入帳戶！');
+        return;
+      }
+      toCurr = document.getElementById('to-currency').value;
+      toAmt = parseFloat(document.getElementById('to-amount').value);
+      if (isNaN(toAmt) || toAmt <= 0) {
+        alert('請輸入有效的轉入金額！');
         return;
       }
       finalCategory = '⇄ 內部轉帳/還款';
@@ -1474,12 +1100,17 @@
         finalCategory = selectedCategoryValue;
       }
     }
+
     const newRecord = {
       id: Date.now().toString(),
       type: currentType,
       date: recordDate,
       currency: currency,
       amount: amount,
+      fromCurrency: fromCurr,
+      fromAmount: fromAmt,
+      toCurrency: toCurr,
+      toAmount: toAmt,
       account: accountVal,
       actualAccount: getActualAccount(accountVal),
       fromAccount: fromAccountVal,
@@ -1490,10 +1121,12 @@
       note: note,
       timestamp: Date.now()
     };
+
     const records = loadRecords();
     records.push(newRecord);
     saveRecords(records);
     document.getElementById('amount').value = '';
+    document.getElementById('to-amount').value = '';
     document.getElementById('note').value = '';
     customCategoryInput.value = '';
     customCategoryInput.style.display = 'none';
@@ -1507,7 +1140,6 @@
     saveRecords(records);
   }
 
-  // 核心修改：計算每日利息並展開累積
   function calculateAntBankInterestDailyDetails(baseBalances, records) {
     let initialMop = baseBalances['澳門螞蟻銀行'] ? (baseBalances['澳門螞蟻銀行']['MOP'] || 0) : 0;
     let sortedRecords = [...records].sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -1530,12 +1162,15 @@
       if (item.actualAccount === '澳門螞蟻銀行' || item.actualFromAccount === '澳門螞蟻銀行' || item.actualToAccount === '澳門螞蟻銀行') {
         let d = item.date;
         if (!dailyChanges[d]) dailyChanges[d] = { income: 0, expense: 0, transferIn: 0, transferOut: 0 };
-        let mopVal = convertToMOP(item.amount, item.currency);
-        if (item.type === 'income' && item.actualAccount === '澳門螞蟻銀行') dailyChanges[d].income += mopVal;
-        if ((item.type === 'expense' || !item.type) && item.actualAccount === '澳門螞蟻銀行') dailyChanges[d].expense += mopVal;
+        
+        let mopValFrom = convertToMOP(item.fromAmount !== undefined ? item.fromAmount : item.amount, item.fromCurrency || item.currency);
+        let mopValTo = convertToMOP(item.toAmount !== undefined ? item.toAmount : item.amount, item.toCurrency || item.currency);
+
+        if (item.type === 'income' && item.actualAccount === '澳門螞蟻銀行') dailyChanges[d].income += mopValFrom;
+        if ((item.type === 'expense' || !item.type) && item.actualAccount === '澳門螞蟻銀行') dailyChanges[d].expense += mopValFrom;
         if (item.type === 'transfer') {
-          if (item.actualFromAccount === '澳門螞蟻銀行') dailyChanges[d].transferOut += mopVal;
-          if (item.actualToAccount === '澳門螞蟻銀行') dailyChanges[d].transferIn += mopVal;
+          if (item.actualFromAccount === '澳門螞蟻銀行') dailyChanges[d].transferOut += mopValFrom;
+          if (item.actualToAccount === '澳門螞蟻銀行') dailyChanges[d].transferIn += mopValTo;
         }
       }
     });
@@ -1578,37 +1213,44 @@
     return { totalInterest, dailyDetails };
   }
 
+  // 核心修訂：計算銀行金額（支援跨幣種轉帳）
   function calculateBankBalancesFromRecords() {
     const records = loadRecords();
     const baseBalances = loadBankBaseBalances();
     const calculated = JSON.parse(JSON.stringify(baseBalances));
     const bankList = getBankList();
+    
     records.forEach(item => {
-      const curr = item.currency, amt = item.amount;
+      const fromCurr = item.fromCurrency || item.currency;
+      const fromAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+      const toCurr = item.toCurrency || item.currency;
+      const toAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
+
       if (item.type === 'income') {
         const b = item.actualAccount;
         if (bankList.includes(b)) {
           if (!calculated[b]) calculated[b] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[b][curr] = (calculated[b][curr] || 0) + amt;
+          calculated[b][fromCurr] = (calculated[b][fromCurr] || 0) + fromAmt;
         }
       } else if (item.type === 'expense' || !item.type) {
         const b = item.actualAccount;
         if (bankList.includes(b)) {
           if (!calculated[b]) calculated[b] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[b][curr] = (calculated[b][curr] || 0) - amt;
+          calculated[b][fromCurr] = (calculated[b][fromCurr] || 0) - fromAmt;
         }
       } else if (item.type === 'transfer') {
         const fromB = item.actualFromAccount, toB = item.actualToAccount;
         if (bankList.includes(fromB)) {
           if (!calculated[fromB]) calculated[fromB] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[fromB][curr] = (calculated[fromB][curr] || 0) - amt;
+          calculated[fromB][fromCurr] = (calculated[fromB][fromCurr] || 0) - fromAmt;
         }
         if (bankList.includes(toB)) {
           if (!calculated[toB]) calculated[toB] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[toB][curr] = (calculated[toB][curr] || 0) + amt;
+          calculated[toB][toCurr] = (calculated[toB][toCurr] || 0) + toAmt;
         }
       }
     });
+
     const antInterestData = calculateAntBankInterestDailyDetails(baseBalances, records);
     if (!calculated['澳門螞蟻銀行']) calculated['澳門螞蟻銀行'] = { MOP: 0, HKD: 0, CNY: 0 };
     calculated['澳門螞蟻銀行']['MOP'] = (calculated['澳門螞蟻銀行']['MOP'] || 0) + antInterestData.totalInterest;
@@ -1616,28 +1258,34 @@
     return calculated;
   }
 
+  // 核心修訂：計算信用卡欠款（支援跨幣種轉帳）
   function calculateCreditBalancesFromRecords() {
     const records = loadRecords();
     const baseBalances = loadCreditBaseBalances();
     const calculated = JSON.parse(JSON.stringify(baseBalances));
+
     records.forEach(item => {
-      const curr = item.currency, amt = item.amount;
+      const fromCurr = item.fromCurrency || item.currency;
+      const fromAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+      const toCurr = item.toCurrency || item.currency;
+      const toAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
+
       if ((item.type === 'expense' || !item.type)) {
         const cr = item.actualAccount;
         if (CREDIT_LIST.includes(cr)) {
           if (!calculated[cr]) calculated[cr] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[cr][curr] = (calculated[cr][curr] || 0) + amt;
+          calculated[cr][fromCurr] = (calculated[cr][fromCurr] || 0) + fromAmt;
         }
       } else if (item.type === 'transfer') {
         const toCr = item.actualToAccount;
         if (CREDIT_LIST.includes(toCr)) {
           if (!calculated[toCr]) calculated[toCr] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[toCr][curr] = (calculated[toCr][curr] || 0) - amt;
+          calculated[toCr][toCurr] = (calculated[toCr][toCurr] || 0) - toAmt;
         }
         const fromCr = item.actualFromAccount;
         if (CREDIT_LIST.includes(fromCr)) {
           if (!calculated[fromCr]) calculated[fromCr] = { MOP: 0, HKD: 0, CNY: 0 };
-          calculated[fromCr][curr] = (calculated[fromCr][curr] || 0) + amt;
+          calculated[fromCr][fromCurr] = (calculated[fromCr][fromCurr] || 0) + fromAmt;
         }
       }
     });
@@ -1648,7 +1296,7 @@
     const records = loadRecords();
     renderCategoryGrid();
     updateFilterCategoryDropdown(records);
-    updateBankDropdowns(); // 更新各處的銀行下拉選單
+    updateBankDropdowns();
     renderMonthlySection(records);
     populateYearDropdown(records);
     renderYearlySummary();
@@ -1658,21 +1306,15 @@
     renderAssetSection();
   }
 
-  // 更新所有涉及選擇銀行戶口的下拉選單（包含新增記帳、轉帳、流水帳篩選等）
   function updateBankDropdowns() {
     const bankList = getBankList();
-    
-    // 1. 月度新增記帳的銀行選項
     const bankOptGroup = document.getElementById('account-bank-options');
     if (bankOptGroup) {
       let html = '';
-      bankList.forEach(b => {
-        html += `<option value="${b}">${b}</option>`;
-      });
+      bankList.forEach(b => html += `<option value="${b}">${b}</option>`);
       bankOptGroup.innerHTML = html;
     }
 
-    // 2. 轉帳與流水帳篩選選單更新
     ['from-account', 'to-account', 'filter-account-monthly', 'bank-flow-select'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -1680,9 +1322,7 @@
       
       if (id === 'bank-flow-select') {
         let html = '';
-        bankList.forEach(b => {
-          html += `<option value="${b}">${b.replace('澳門', '').replace('香港', '')}</option>`;
-        });
+        bankList.forEach(b => html += `<option value="${b}">${b.replace('澳門', '').replace('香港', '')}</option>`);
         el.innerHTML = html;
         if (bankList.includes(currentVal)) el.value = currentVal;
       } else if (id === 'filter-account-monthly') {
@@ -1692,7 +1332,6 @@
         el.innerHTML = html;
         el.value = currentVal;
       } else {
-        // from-account / to-account
         let html = `<option value="" disabled selected>${id === 'from-account' ? '轉出戶口' : '轉入戶口'}</option><option value="MPay">MPay</option><option value="BOC Pay">BOC Pay</option>`;
         bankList.forEach(b => html += `<option value="${b}">${b.replace('澳門', '').replace('香港', '')}</option>`);
         CREDIT_LIST.forEach(c => html += `<option value="${c}">${c}</option>`);
@@ -1718,13 +1357,9 @@
     });
 
     let html = '<option value="ALL">全部類別</option>';
-    Array.from(setOfCats).sort().forEach(c => {
-      html += `<option value="${c}">${c}</option>`;
-    });
+    Array.from(setOfCats).sort().forEach(c => html += `<option value="${c}">${c}</option>`);
     filterCatSelect.innerHTML = html;
-    if (currentVal && Array.from(setOfCats).includes(currentVal)) {
-      filterCatSelect.value = currentVal;
-    }
+    if (currentVal && Array.from(setOfCats).includes(currentVal)) { filterCatSelect.value = currentVal; }
   }
 
   function renderMonthlySection(records) {
@@ -1766,21 +1401,33 @@
       const dateA = new Date(a.date), dateB = new Date(b.date);
       return sortOrder === 'asc' ? (dateA - dateB || a.timestamp - b.timestamp) : (dateB - dateA || b.timestamp - a.timestamp);
     });
+
     if (items.length === 0) {
       listContainer.innerHTML = '<div class="empty-state">當月尚無符合條件的紀錄</div>';
       document.getElementById('record-count').textContent = '0 筆';
     } else {
       let html = '';
       items.forEach(item => {
-        const mopValue = convertToMOP(item.amount, item.currency);
-        const mopConvertedText = item.currency !== 'MOP' ? `<div class="mop-converted">(≈ MOP$ ${mopValue.toFixed(1)})</div>` : '';
+        const fromCurr = item.fromCurrency || item.currency;
+        const fromAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+        const toCurr = item.toCurrency || item.currency;
+        const toAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
+
+        const mopValue = convertToMOP(fromAmt, fromCurr);
+        const mopConvertedText = fromCurr !== 'MOP' ? `<div class="mop-converted">(≈ MOP$ ${mopValue.toFixed(1)})</div>` : '';
         let typeClass = item.type || 'expense';
         let amountPrefix = item.type === 'income' ? '+' : (item.type === 'transfer' ? '⇄ ' : '-');
+        
         let accountSubTag = `<span class="tag">💳 ${item.account}</span>`;
         if (BINDING_MAP[item.account]) accountSubTag += ` <span class="tag bank-deduct">🏛️ 扣: ${BINDING_MAP[item.account]}</span>`;
         if (CREDIT_LIST.includes(item.account)) accountSubTag = `<span class="tag credit-tag">💳 信用卡: ${item.account}</span>`;
         if (typeClass === 'transfer') accountSubTag = `<span class="tag transfer-tag">💳 ${item.fromAccount} ➔ ${item.toAccount}</span>`;
         
+        let displayAmtStr = `${amountPrefix}${fromCurr} $${fromAmt.toLocaleString(undefined, {maximumFractionDigits: 3})}`;
+        if (typeClass === 'transfer' && (fromCurr !== toCurr || fromAmt !== toAmt)) {
+          displayAmtStr = `${fromCurr} $${fromAmt.toLocaleString(undefined, {maximumFractionDigits: 3})} ➔ ${toCurr} $${toAmt.toLocaleString(undefined, {maximumFractionDigits: 3})}`;
+        }
+
         html += `
           <div class="item ${typeClass}">
             <div class="item-info">
@@ -1789,7 +1436,7 @@
             </div>
             <div class="item-amount">
               <div class="item-amount-row">
-                <span class="amount-text">${amountPrefix}${item.currency} $${item.amount.toLocaleString()}</span>
+                <span class="amount-text">${displayAmtStr}</span>
                 <button class="btn-delete" onclick="deleteRecord('${item.id}')">✕</button>
               </div>
               ${mopConvertedText}
@@ -1813,7 +1460,9 @@
       if (!item.date) return;
       const [iYear, iMonth] = item.date.split('-').map(Number);
       if (iYear === sYear && iMonth === sMonth) {
-        const mopValue = convertToMOP(item.amount, item.currency);
+        const fromCurr = item.fromCurrency || item.currency;
+        const fromAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+        const mopValue = convertToMOP(fromAmt, fromCurr);
         if (item.type === 'income') monthIncomeMOP += mopValue;
         if (item.type === 'expense' || !item.type) monthExpenseMOP += mopValue;
       }
@@ -1836,7 +1485,7 @@
       const [iYear, iMonth] = item.date.split('-').map(Number);
       if (iYear === sYear && iMonth === sMonth && (item.type === 'expense' || !item.type)) {
         const cat = item.category || '🏷️ 其他';
-        const mopValue = convertToMOP(item.amount, item.currency);
+        const mopValue = convertToMOP(item.fromAmount !== undefined ? item.fromAmount : item.amount, item.fromCurrency || item.currency);
         categoryMap[cat] = (categoryMap[cat] || 0) + mopValue;
         totalExpenseMOP += mopValue;
       }
@@ -1881,7 +1530,7 @@
       if (!item.date) return;
       const [iYear, iMonth] = item.date.split('-').map(Number);
       if (iYear === selectedYear) {
-        const mopValue = convertToMOP(item.amount, item.currency);
+        const mopValue = convertToMOP(item.fromAmount !== undefined ? item.fromAmount : item.amount, item.fromCurrency || item.currency);
         const mKey = `${iYear}-${String(iMonth).padStart(2, '0')}`;
         if (!monthlyDataMap[mKey]) monthlyDataMap[mKey] = { income: 0, expense: 0 };
         if (item.type === 'income') { yearlyIncome += mopValue; monthlyDataMap[mKey].income += mopValue; }
@@ -1933,43 +1582,6 @@
     }
   }
 
-  function exportMonthCSV() {
-    const selectedMonthVal = filterMonthInput.value;
-    const records = loadRecords();
-    const filtered = records.filter(item => item.date && item.date.startsWith(selectedMonthVal));
-    if (filtered.length === 0) { alert('該月份無紀錄可導出'); return; }
-    
-    let csv = '\uFEFF日期,類型,分類,金額,幣別,帳戶/來源,備註\n';
-    filtered.forEach(item => {
-      csv += `"${item.date}","${item.type || 'expense'}","${item.category || ''}","${item.amount}","${item.currency}","${item.account || item.fromAccount + '->' + item.toAccount}","${item.note || ''}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `月度記帳_${selectedMonthVal}.csv`;
-    a.click();
-  }
-
-  function exportYearCSV() {
-    const selectedYear = document.getElementById('filter-year').value;
-    const records = loadRecords();
-    const filtered = records.filter(item => item.date && item.date.startsWith(selectedYear));
-    if (filtered.length === 0) { alert('該年度無紀錄可導出'); return; }
-    
-    let csv = '\uFEFF日期,類型,分類,金額,幣別,帳戶/來源,備註\n';
-    filtered.forEach(item => {
-      csv += `"${item.date}","${item.type || 'expense'}","${item.category || ''}","${item.amount}","${item.currency}","${item.account || item.fromAccount + '->' + item.toAccount}","${item.note || ''}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `年度記帳_${selectedYear}.csv`;
-    a.click();
-  }
-
-  // 新增：處理新增自訂銀行戶口
   function addNewBankAccount() {
     const inputEl = document.getElementById('new-bank-name');
     const name = inputEl.value.trim();
@@ -1984,16 +1596,12 @@
     syncToFirebase();
     inputEl.value = '';
     renderApp();
-    alert(`成功新增銀行戶口：${name}`);
   }
 
-  // 新增：刪除自訂銀行戶口
   function deleteBankAccount(bankName) {
     if (!confirm(`確定要刪除銀行戶口「${bankName}」嗎？`)) return;
     cloudData.customBankList = (cloudData.customBankList || []).filter(b => b !== bankName);
-    if (cloudData.bankBaseBalances[bankName]) {
-      delete cloudData.bankBaseBalances[bankName];
-    }
+    if (cloudData.bankBaseBalances[bankName]) { delete cloudData.bankBaseBalances[bankName]; }
     syncToFirebase();
     renderApp();
   }
@@ -2016,13 +1624,13 @@
       ['MOP', 'HKD', 'CNY'].forEach(c => {
         const val = currMap[c] || 0;
         bankMopSum += convertToMOP(val, c);
-        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toLocaleString(undefined, {maximumFractionDigits: 1})}</span></div>`;
+        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toLocaleString(undefined, {maximumFractionDigits: 3})}</span></div>`;
       });
       grandTotalMOP += bankMopSum;
       let extraInfoHtml = (bankName === '澳門螞蟻銀行' && currMap._accruedInterest > 0) ? `<div class="interest-note">✨ 2%日計利息 (由2026-07-30起算) (≈ MOP$ ${currMap._accruedInterest.toFixed(1)})</div>` : '';
       
       const isCustom = !DEFAULT_BANK_LIST.includes(bankName);
-      const deleteBtnHtml = isCustom ? `<button class="btn-delete" onclick="deleteBankAccount('${bankName}')" title="刪除戶口">✕</button>` : '';
+      const deleteBtnHtml = isCustom ? `<button class="btn-delete" onclick="deleteBankAccount('${bankName}')">✕</button>` : '';
 
       editorHtml += `
         <div class="bank-card">
@@ -2032,12 +1640,12 @@
           <div class="bank-edit-group">
             <div class="bank-edit-row">
               <select id="base-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
-              <input type="number" id="base-amt-${bankName}" placeholder="設定初始金額">
+              <input type="number" id="base-amt-${bankName}" placeholder="設定初始金額" step="0.001">
               <button type="button" class="btn-sm-save" onclick="updateBankBaseAmount('${bankName}')">設定初始</button>
             </div>
             <div class="bank-edit-row">
               <select id="adj-curr-${bankName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
-              <input type="number" id="adj-amt-${bankName}" placeholder="金額" step="any">
+              <input type="number" id="adj-amt-${bankName}" placeholder="金額" step="0.001">
               <button type="button" class="btn-sm-save" onclick="modifyBankBalance('${bankName}', 'add')">增加</button>
               <button type="button" class="btn-sm-sub" onclick="modifyBankBalance('${bankName}', 'sub')">減少</button>
             </div>
@@ -2080,6 +1688,10 @@
       date: todayStr,
       currency: curr,
       amount: amt,
+      fromCurrency: curr,
+      fromAmount: amt,
+      toCurrency: curr,
+      toAmount: amt,
       account: bankName,
       actualAccount: bankName,
       category: actionType === 'add' ? '🏷️ 帳戶調增' : '🏷️ 帳戶調減',
@@ -2090,7 +1702,6 @@
     records.push(newRecord);
     saveRecords(records);
     document.getElementById(`adj-amt-${bankName}`).value = '';
-    alert(actionType === 'add' ? '已成功增加金額！' : '已成功減少金額！');
   }
 
   function renderBankFlowList() {
@@ -2102,12 +1713,12 @@
     
     let bankRecords = records.filter(item => {
       const isMatchBank = (item.actualAccount === selectedBank || item.actualFromAccount === selectedBank || item.actualToAccount === selectedBank);
-      const isMatchCurr = (selectedCurr === 'ALL' || item.currency === selectedCurr);
+      const itemCurr = item.actualFromAccount === selectedBank ? (item.fromCurrency || item.currency) : (item.toCurrency || item.currency);
+      const isMatchCurr = (selectedCurr === 'ALL' || itemCurr === selectedCurr);
       const isMatchMonth = (!selectedMonth || (item.date && item.date.startsWith(selectedMonth)));
       return isMatchBank && isMatchCurr && isMatchMonth;
     });
 
-    // 每天記入相關利息在螞蟻銀行流水帳
     if (selectedBank === '澳門螞蟻銀行') {
       const baseBalances = loadBankBaseBalances();
       const interestData = calculateAntBankInterestDailyDetails(baseBalances, records);
@@ -2115,9 +1726,7 @@
         interestData.dailyDetails.forEach(vRec => {
           const isMatchCurr = (selectedCurr === 'ALL' || vRec.currency === selectedCurr);
           const isMatchMonth = (!selectedMonth || vRec.date.startsWith(selectedMonth));
-          if (isMatchCurr && isMatchMonth) {
-            bankRecords.push(vRec);
-          }
+          if (isMatchCurr && isMatchMonth) { bankRecords.push(vRec); }
         });
       }
     }
@@ -2128,10 +1737,20 @@
     let html = '';
     bankRecords.forEach(item => {
       let typeClass = item.type || 'expense';
-      let amountPrefix = item.type === 'income' ? '+' : (item.type === 'transfer' ? '⇄ ' : '-');
       let isVirtual = String(item.id).startsWith('interest-');
       let deleteBtn = isVirtual ? '' : `<button class="btn-delete" onclick="deleteRecord('${item.id}')">✕</button>`;
       
+      let amtDisplay = '';
+      if (item.type === 'transfer') {
+        const isOut = item.actualFromAccount === selectedBank;
+        const curStr = isOut ? (item.fromCurrency || item.currency) : (item.toCurrency || item.currency);
+        const amtVal = isOut ? (item.fromAmount !== undefined ? item.fromAmount : item.amount) : (item.toAmount !== undefined ? item.toAmount : item.amount);
+        amtDisplay = `${isOut ? '-' : '+'}${curStr} $${amtVal.toLocaleString(undefined, {maximumFractionDigits: 3})}`;
+      } else {
+        const prefix = item.type === 'income' ? '+' : '-';
+        amtDisplay = `${prefix}${item.currency} $${item.amount.toLocaleString(undefined, {maximumFractionDigits: 3})}`;
+      }
+
       html += `
         <div class="item ${typeClass}" ${isVirtual ? 'style="border-left-color: var(--income); background: #ECFDF5;"' : ''}>
           <div class="item-info">
@@ -2140,7 +1759,7 @@
           </div>
           <div class="item-amount">
             <div class="item-amount-row">
-              <span class="amount-text">${amountPrefix}${item.currency} $${item.amount.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+              <span class="amount-text">${amtDisplay}</span>
               ${deleteBtn}
             </div>
           </div>
@@ -2165,14 +1784,14 @@
       ['MOP', 'HKD', 'CNY'].forEach(c => {
         const val = currMap[c] || 0;
         creditMopSum += convertToMOP(val, c);
-        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toLocaleString(undefined, {maximumFractionDigits: 1})}</span></div>`;
+        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toLocaleString(undefined, {maximumFractionDigits: 3})}</span></div>`;
       });
       grandTotalMOP += creditMopSum;
 
       let cardMonthSpend = 0;
       records.forEach(item => {
         if (item.date && item.date.startsWith(currentMonthPrefix) && (item.actualAccount === creditName || item.account === creditName) && (item.type === 'expense' || !item.type)) {
-          cardMonthSpend += convertToMOP(item.amount, item.currency);
+          cardMonthSpend += convertToMOP(item.fromAmount !== undefined ? item.fromAmount : item.amount, item.fromCurrency || item.currency);
         }
       });
       totalMonthSpendMOP += cardMonthSpend;
@@ -2185,7 +1804,7 @@
           <div class="bank-edit-group">
             <div class="bank-edit-row">
               <select id="base-curr-${creditName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
-              <input type="number" id="base-amt-${creditName}" placeholder="設定期初未繳欠款">
+              <input type="number" id="base-amt-${creditName}" placeholder="設定期初未繳欠款" step="0.001">
               <button type="button" class="btn-sm-save" style="background: var(--credit);" onclick="updateCreditBaseAmount('${creditName}')">設定初始</button>
             </div>
           </div>
@@ -2208,7 +1827,6 @@
     currentBase[creditName][curr] = amt;
     saveCreditBaseBalances(currentBase);
     document.getElementById(`base-amt-${creditName}`).value = '';
-    alert('已更新信用卡期初欠款設定！');
   }
 
   function renderCreditFlowList() {
@@ -2227,13 +1845,16 @@
       let typeClass = item.type || 'expense';
       let amountPrefix = item.type === 'transfer' ? '⇄ 還款 ' : '-';
       let subInfo = item.type === 'transfer' ? `<span class="tag">還款自 ${item.fromAccount} ➔ ${item.toAccount}</span>` : `<span class="tag credit-tag">${item.account}</span>`;
+      let cur = item.type === 'transfer' ? (item.toCurrency || item.currency) : (item.fromCurrency || item.currency);
+      let amt = item.type === 'transfer' ? (item.toAmount !== undefined ? item.toAmount : item.amount) : (item.fromAmount !== undefined ? item.fromAmount : item.amount);
+
       html += `
         <div class="item ${typeClass}">
           <div class="item-info">
             <div class="title">${item.category} ${item.note ? `<span>(${item.note})</span>` : ''}</div>
             <div class="sub"><span>📅 ${item.date}</span> ${subInfo}</div>
           </div>
-          <div class="item-amount"><span class="amount-text">${amountPrefix}${item.currency} $${item.amount.toLocaleString()}</span></div>
+          <div class="item-amount"><span class="amount-text">${amountPrefix}${cur} $${amt.toLocaleString(undefined, {maximumFractionDigits: 3})}</span></div>
         </div>
       `;
     });
@@ -2250,8 +1871,8 @@
       accOptionsHtml += `<option value="${acc.id}">${acc.name}</option>`;
       accountsHtml += `
         <div class="item" style="border-left-color: #059669;">
-          <div class="item-info"><div class="title">🛡️ ${acc.name}</div><div class="sub"><span>初額: HK$ ${(acc.initialBalance || 0).toLocaleString()}</span></div></div>
-          <div class="item-amount"><div class="item-amount-row"><span class="amount-text" style="color: #059669;">HK$ ${acc.balance.toLocaleString()}</span><button class="btn-delete" onclick="deleteMPFAccount('${acc.id}')">✕</button></div></div>
+          <div class="item-info"><div class="title">🛡️ ${acc.name}</div><div class="sub"><span>初額: HK$ ${(acc.initialBalance || 0).toLocaleString(undefined, {maximumFractionDigits: 3})}</span></div></div>
+          <div class="item-amount"><div class="item-amount-row"><span class="amount-text" style="color: #059669;">HK$ ${acc.balance.toLocaleString(undefined, {maximumFractionDigits: 3})}</span><button class="btn-delete" onclick="deleteMPFAccount('${acc.id}')">✕</button></div></div>
         </div>
       `;
     });
@@ -2326,14 +1947,32 @@
         <tr>
           <td>${rec.month}</td>
           <td>${acc ? acc.name : '已刪'}</td>
-          <td>HK$ ${rec.balance.toLocaleString()}</td>
-          <td>HK$ ${rec.contrib || 0}</td>
+          <td>HK$ ${rec.balance.toLocaleString(undefined, {maximumFractionDigits: 3})}</td>
+          <td>HK$ ${(rec.contrib || 0).toLocaleString(undefined, {maximumFractionDigits: 3})}</td>
           <td><span class="${diffClass}">${diffPrefix}HK$ ${Math.round(rec.diff).toLocaleString()}</span></td>
           <td><button class="btn-delete" onclick="deleteMPFMonthlyRecord('${rec.id}')">✕</button></td>
         </tr>
       `;
     });
     tbody.innerHTML = html;
+  }
+
+  function executeGlobalAssetDeduct() {
+    const curr = document.getElementById('asset-deduct-curr').value;
+    const amt = parseFloat(document.getElementById('asset-deduct-amt').value);
+    const note = document.getElementById('asset-deduct-note').value.trim();
+    if (isNaN(amt) || amt <= 0) { alert('請輸入有效扣減金額'); return; }
+    const deductions = loadGlobalDeductions();
+    deductions.push({ id: Date.now().toString(), currency: curr, amount: amt, note, date: new Date().toISOString().split('T')[0] });
+    saveGlobalDeductions(deductions);
+    document.getElementById('asset-deduct-amt').value = '';
+    document.getElementById('asset-deduct-note').value = '';
+    renderAssetSection();
+  }
+
+  function deleteGlobalAssetDeduct(id) {
+    saveGlobalDeductions(loadGlobalDeductions().filter(d => d.id !== id));
+    renderAssetSection();
   }
 
   function renderAssetSection() {
@@ -2363,7 +2002,7 @@
         dedHtml += `
           <div class="item" style="border-left-color: var(--asset);">
             <div class="item-info">
-              <div class="title">📉 扣減金額: ${d.currency} $${d.amount.toLocaleString()}</div>
+              <div class="title">📉 扣減金額: ${d.currency} $${d.amount.toLocaleString(undefined, {maximumFractionDigits: 3})}</div>
               <div class="sub"><span>📅 ${d.date}</span> <span>備註: ${d.note || '無'}</span></div>
             </div>
             <div class="item-amount"><button class="btn-delete" onclick="deleteGlobalAssetDeduct('${d.id}')">✕</button></div>
@@ -2390,67 +2029,40 @@
       </div>
       <div class="cat-progress-item">
         <div class="cat-progress-info"><span>🛡️ 強積金佔比</span><span>${mpfRatio}%</span></div>
-        <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${mpfRatio}%; background: var(--mpf);"></div></div>
+        <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${mpfRatio}%; background: #059669;"></div></div>
       </div>
     `;
     document.getElementById('asset-ratio-list').innerHTML = ratioHtml;
   }
 
-  function executeGlobalAssetDeduct() {
-    const curr = document.getElementById('asset-deduct-curr').value;
-    const amt = parseFloat(document.getElementById('asset-deduct-amt').value);
-    const note = document.getElementById('asset-deduct-note').value.trim();
-    if (isNaN(amt) || amt <= 0) { alert('請輸入有效的扣減金額'); return; }
-    const deductions = loadGlobalDeductions();
-    deductions.push({ id: Date.now().toString(), date: new Date().toISOString().split('T')[0], currency: curr, amount: amt, note });
-    saveGlobalDeductions(deductions);
-    document.getElementById('asset-deduct-amt').value = '';
-    document.getElementById('asset-deduct-note').value = '';
-    renderAssetSection();
-    alert('已成功扣減總資產！');
-  }
-
-  function deleteGlobalAssetDeduct(id) {
-    saveGlobalDeductions(loadGlobalDeductions().filter(d => d.id !== id));
-    renderAssetSection();
-  }
-
   function exportJSONBackup() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cloudData, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", `budget_backup_${new Date().toISOString().split('T')[0]}.json`);
-    dlAnchorElem.click();
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `極簡雲端記帳本備份_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   }
 
   function importJSONBackup(event) {
-    const fileReader = new FileReader();
-    if (event.target.files[0]) {
-      fileReader.readAsText(event.target.files[0], "UTF-8");
-      fileReader.onload = (e) => {
-        try {
-          const parsed = JSON.parse(e.target.result);
-          if (parsed && parsed.records) {
-            cloudData = parsed;
-            if (!cloudData.customBankList) cloudData.customBankList = [];
-            if (!cloudData.deletedDefaultCategories) cloudData.deletedDefaultCategories = [];
-            if (!cloudData.creditBaseBalances) cloudData.creditBaseBalances = {
-              '澳門中國銀行(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-              '香港中國銀行(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-              'DBS(信用卡)': { MOP: 0, HKD: 0, CNY: 0 },
-              'AE(信用卡)': { MOP: 0, HKD: 0, CNY: 0 }
-            };
-            syncToFirebase();
-            renderApp();
-            alert('備份還原成功！');
-          } else {
-            alert('JSON 格式不正確！');
-          }
-        } catch (err) {
-          alert('解析 JSON 檔案失敗：' + err.message);
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (confirm("匯入備份將會覆蓋當前雲端與本地的所有紀錄，確定要繼續嗎？")) {
+          cloudData = imported;
+          syncToFirebase();
+          renderApp();
+          alert("備份資料匯入成功！");
         }
+      } catch (err) {
+        alert("備份檔案格式無效！");
       }
-    }
+    };
+    reader.readAsText(file);
   }
 </script>
 </body>
