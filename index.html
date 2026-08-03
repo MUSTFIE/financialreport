@@ -393,6 +393,18 @@
       </div>
     </div>
 
+    <!-- 新增：當月實際總結餘版塊 -->
+    <div class="dashboard" style="background: linear-gradient(135deg, #059669, #047857);">
+      <div class="dashboard-header">
+        <span class="label">當月實際總結餘 (MOP) [含信用卡還款]</span>
+      </div>
+      <div class="total-balance" id="month-actual-net-balance">MOP$ 0</div>
+      <div class="dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="dash-item"><span class="dash-label">實際總收入</span><span class="dash-val income" id="month-actual-income">+MOP$ 0</span></div>
+        <div class="dash-item"><span class="dash-label">實際總支出 (支出+還款)</span><span class="dash-val expense" id="month-actual-expense">-MOP$ 0</span></div>
+      </div>
+    </div>
+
     <div class="desktop-grid-2">
       <div class="card">
         <div class="card-title">✏️ 新增記帳</div>
@@ -414,7 +426,7 @@
             <input type="number" id="amount" placeholder="金額" step="0.001" required oninput="autoCalculateTransferToAmount()">
           </div>
 
-          <!-- 新增：跨幣種轉帳目標幣種與金額列 -->
+          <!-- 跨幣種轉帳目標幣種與金額列 -->
           <div class="input-row" id="row-transfer-target" style="display: none; align-items: center; background: #F3E8FF; padding: 8px; border-radius: 10px;">
             <span style="font-size: 11px; font-weight: bold; color: #6D28D9; white-space: nowrap;">轉入金額：</span>
             <select id="to-currency" style="width: 100px;" onchange="autoCalculateTransferToAmount()">
@@ -919,7 +931,6 @@
     }
   }
 
-  // 自動依匯率換算轉入金額
   function autoCalculateTransferToAmount() {
     if (currentType !== 'transfer') return;
     const fromCurr = document.getElementById('currency').value;
@@ -1213,7 +1224,6 @@
     return { totalInterest, dailyDetails };
   }
 
-  // 核心修訂：計算銀行金額（支援跨幣種轉帳）
   function calculateBankBalancesFromRecords() {
     const records = loadRecords();
     const baseBalances = loadBankBaseBalances();
@@ -1258,7 +1268,6 @@
     return calculated;
   }
 
-  // 核心修訂：計算信用卡欠款（支援跨幣種轉帳）
   function calculateCreditBalancesFromRecords() {
     const records = loadRecords();
     const baseBalances = loadCreditBaseBalances();
@@ -1456,6 +1465,11 @@
     if (!selectedMonthVal) return;
     const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
     let monthIncomeMOP = 0, monthExpenseMOP = 0;
+    
+    // 新增：實際總結餘相關計算變數
+    let monthActualIncomeMOP = 0;
+    let monthActualExpenseMOP = 0;
+
     items.forEach(item => {
       if (!item.date) return;
       const [iYear, iMonth] = item.date.split('-').map(Number);
@@ -1463,16 +1477,39 @@
         const fromCurr = item.fromCurrency || item.currency;
         const fromAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
         const mopValue = convertToMOP(fromAmt, fromCurr);
-        if (item.type === 'income') monthIncomeMOP += mopValue;
-        if (item.type === 'expense' || !item.type) monthExpenseMOP += mopValue;
+
+        if (item.type === 'income') {
+          monthIncomeMOP += mopValue;
+          monthActualIncomeMOP += mopValue; // 一般收入計入實際總收入
+        }
+        if (item.type === 'expense' || !item.type) {
+          monthExpenseMOP += mopValue;
+          monthActualExpenseMOP += mopValue; // 一般支出計入實際總支出
+        }
+
+        // 信用卡還款判斷邏輯：轉帳類型且轉入目標為信用卡戶口
+        if (item.type === 'transfer' && CREDIT_LIST.includes(item.actualToAccount)) {
+          const toCurr = item.toCurrency || item.currency;
+          const toAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
+          const transferToMop = convertToMOP(toAmt, toCurr);
+          monthActualExpenseMOP += transferToMop; // 依要求：實際總支出 = 當月的所有支出 + 信用卡還款[cite: 1]
+        }
       }
     });
+
     const monthBalanceMOP = monthIncomeMOP - monthExpenseMOP;
     document.getElementById('month-net-balance').textContent = `MOP$ ${Math.round(monthBalanceMOP).toLocaleString()}`;
     document.getElementById('month-income').textContent = `+MOP$ ${Math.round(monthIncomeMOP).toLocaleString()}`;
     document.getElementById('month-expense').textContent = `-MOP$ ${Math.round(monthExpenseMOP).toLocaleString()}`;
+    
     const daysInMonth = new Date(sYear, sMonth, 0).getDate();
     document.getElementById('month-daily-avg').textContent = `MOP$ ${Math.round(monthExpenseMOP / daysInMonth).toLocaleString()}/日`;
+
+    // 渲染當月實際總結餘版塊數據
+    const monthActualNetBalance = monthActualIncomeMOP - monthActualExpenseMOP;
+    document.getElementById('month-actual-net-balance').textContent = `MOP$ ${Math.round(monthActualNetBalance).toLocaleString()}`;
+    document.getElementById('month-actual-income').textContent = `+MOP$ ${Math.round(monthActualIncomeMOP).toLocaleString()}`;
+    document.getElementById('month-actual-expense').textContent = `-MOP$ ${Math.round(monthActualExpenseMOP).toLocaleString()}`;
   }
 
   function renderCategoryAnalysis(records, selectedMonthVal) {
