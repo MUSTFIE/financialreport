@@ -1248,7 +1248,7 @@
     saveRecords(records);
   }
 
-  // 修正後的螞蟻銀行日計利息計算邏輯：當天新增利息 = 昨天結餘 * 2% 年利率
+  // 計算螞蟻銀行日計利息與流水紀錄
   function calculateAntBankInterestDailyDetails(baseBalances, records) {
     let initialMop = baseBalances['澳門螞蟻銀行'] ? (baseBalances['澳門螞蟻銀行']['MOP'] || 0) : 0;
     let sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date) || a.timestamp - b.timestamp);
@@ -1266,7 +1266,6 @@
     
     let currentMop = initialMop, totalInterest = 0, dailyChanges = {};
     
-    // 先計算歷史其他交易對螞蟻銀行的每日淨變動
     records.forEach(item => {
       if (item.actualAccount === '澳門螞蟻銀行' || item.actualFromAccount === '澳門螞蟻銀行' || item.actualToAccount === '澳門螞蟻銀行') {
         let d = item.date;
@@ -1284,7 +1283,6 @@
       }
     });
 
-    // 推進到起算日前的結餘
     let iterDate = new Date(firstRecordDate);
     while (iterDate < startDate) {
       let dStr = iterDate.toISOString().split('T')[0];
@@ -1299,13 +1297,11 @@
     while (iterDate <= todayDate) {
       let dStr = iterDate.toISOString().split('T')[0];
       
-      // 計算當天交易帶來的結餘變動
       if (dailyChanges[dStr]) {
         currentMop += dailyChanges[dStr].income + dailyChanges[dStr].transferIn - dailyChanges[dStr].expense - dailyChanges[dStr].transferOut;
       }
 
       if (currentMop > 0) {
-        // 利息 = 昨天結餘 * 2% 年利率 (即當前結餘作為昨天結餘基準，或是當日結餘乘日息率)
         let dailyInterest = currentMop * (0.02 / 365);
         if (dailyInterest > 0) {
           totalInterest += dailyInterest;
@@ -1319,7 +1315,7 @@
             note: `昨天結餘 MOP$ ${currentMop.toFixed(2)} × 2% / 365`,
             timestamp: new Date(dStr).getTime() + 99999
           });
-          currentMop += dailyInterest; // 利息滾入本金成為明天的昨天結餘
+          currentMop += dailyInterest;
         }
       }
       iterDate.setDate(iterDate.getDate() + 1);
@@ -2239,12 +2235,15 @@
   }
 
   function exportYearCSV() {
+    const selectedYear = parseInt(document.getElementById('filter-year').value, 10) || currentYear;
     const records = loadRecords();
-    const selectedYear = document.getElementById('filter-year').value || currentYear;
-    let filtered = records.filter(r => r.date && r.date.startsWith(selectedYear));
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF日期,類型,分類,金額,幣種,帳戶,備註\n";
+    let filtered = records.filter(r => {
+      if (!r.date) return false;
+      return parseInt(r.date.split('-')[0], 10) === selectedYear;
+    });
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF日期,類型,分類,金額,幣種,帳戶/轉出,轉入,備註\n";
     filtered.forEach(r => {
-      let row = [r.date, r.type || 'expense', r.category, r.amount, r.currency || r.fromCurrency, r.account || r.fromAccount, r.note || ''];
+      let row = [r.date, r.type || 'expense', r.category, r.amount, r.currency || r.fromCurrency, r.account || r.fromAccount, r.toAccount || '', r.note || ''];
       csvContent += row.join(",") + "\n";
     });
     const encodedUri = encodeURI(csvContent);
