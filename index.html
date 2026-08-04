@@ -1397,7 +1397,6 @@
     if (!calculated['澳門螞蟻銀行']) calculated['澳門螞蟻銀行'] = { MOP: 0, HKD: 0, CNY: 0 };
     calculated['澳門螞蟻銀行']['MOP'] = parseFloat(((calculated['澳門螞蟻銀行']['MOP'] || 0) + antInterestData.totalInterest).toFixed(2));
     calculated['澳門螞蟻銀行']._accruedInterest = antInterestData.totalInterest;
-    calculated['澳門螞蟻銀行']._dailyDetails = antInterestData.dailyDetails;
     return calculated;
   }
 
@@ -1570,11 +1569,6 @@
           displayAmtStr = `${fromCurr} $${fromAmt.toFixed(2)} ➔ ${toCurr} $${toAmt.toFixed(2)}`;
         }
 
-        let editDeleteButtons = item.id.toString().startsWith('interest-') ? '' : `
-          <button class="btn-edit" onclick="editRecord('${item.id}')" title="修改">✎</button>
-          <button class="btn-delete" onclick="deleteRecord('${item.id}')" title="刪除">✕</button>
-        `;
-
         html += `
           <div class="item ${typeClass}">
             <div class="item-info">
@@ -1584,7 +1578,8 @@
             <div class="item-amount">
               <div class="item-amount-row">
                 <span class="amount-text">${displayAmtStr}</span>
-                ${editDeleteButtons}
+                <button class="btn-edit" onclick="editRecord('${item.id}')" title="修改">✎</button>
+                <button class="btn-delete" onclick="deleteRecord('${item.id}')" title="刪除">✕</button>
               </div>
               ${mopConvertedText}
             </div>
@@ -1874,88 +1869,449 @@
   function renderBankFlowList() {
     const container = document.getElementById('bank-transaction-list');
     const selectedBank = document.getElementById('bank-flow-select').value;
-    const selectedMonth = document.getElementById('bank-flow-month').value;
     const selectedCurr = document.getElementById('bank-flow-curr').value;
+    const selectedMonth = document.getElementById('bank-flow-month').value;
     const records = loadRecords();
+    const baseBalances = loadBankBaseBalances();
+    const antInterestData = calculateAntBankInterestDailyDetails(baseBalances, records);
 
-    let combinedItems = [...records];
-
+    let allFlows = [...records];
     if (selectedBank === '澳門螞蟻銀行') {
-      const baseBalances = loadBankBaseBalances();
-      const antInterestData = calculateAntBankInterestDailyDetails(baseBalances, records);
-      if (antInterestData.dailyDetails && antInterestData.dailyDetails.length > 0) {
-        combinedItems = combinedItems.concat(antInterestData.dailyDetails);
-      }
+      allFlows = allFlows.concat(antInterestData.dailyDetails);
     }
 
-    let filtered = combinedItems.filter(item => {
-      let matchesBank = false;
-      if (item.type === 'transfer') {
-        matchesBank = (item.actualFromAccount === selectedBank || item.actualToAccount === selectedBank);
-      } else {
-        matchesBank = (item.actualAccount === selectedBank);
-      }
+    let filtered = allFlows.filter(item => {
+      const matchesBank = item.account === selectedBank || item.actualAccount === selectedBank || 
+                          item.fromAccount === selectedBank || item.actualFromAccount === selectedBank || 
+                          item.toAccount === selectedBank || item.actualToAccount === selectedBank;
       if (!matchesBank) return false;
 
-      if (selectedMonth && item.date) {
-        if (!item.date.startsWith(selectedMonth)) return false;
-      }
-
       if (selectedCurr !== 'ALL') {
-        const curr = item.currency || item.fromCurrency;
-        if (curr !== selectedCurr) return false;
+        const itemCurr = item.currency || item.fromCurrency;
+        if (itemCurr !== selectedCurr) return false;
       }
 
+      if (selectedMonth && item.date) {
+        const [iYear, iMonth] = item.date.split('-').map(Number);
+        const [sYear, sMonth] = selectedMonth.split('-').map(Number);
+        if (iYear !== sYear || iMonth !== sMonth) return false;
+      }
       return true;
-    });
-
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
+    }).sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
 
     if (filtered.length === 0) {
-      container.innerHTML = '<div class="empty-state">該銀行尚無流水帳紀錄</div>';
+      container.innerHTML = '<div class="empty-state">該過濾條件下尚無銀行流水紀錄</div>';
       return;
     }
 
     let html = '';
     filtered.forEach(item => {
-      const curr = item.fromCurrency || item.currency;
+      const curr = item.currency || item.fromCurrency || 'MOP';
       const amt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
-      let typeClass = item.type || 'expense';
-      let amountPrefix = item.type === 'income' ? '+' : (item.type === 'transfer' ? '⇄ ' : '-');
+      let prefix = item.type === 'income' ? '+' : '-';
+      if (item.type === 'transfer') prefix = '⇄ ';
       
-      let displayAmtStr = `${amountPrefix}${curr} $${amt.toFixed(2)}`;
-      if (item.type === 'transfer') {
-        if (item.actualFromAccount === selectedBank) {
-          amountPrefix = '-';
-          displayAmtStr = `-${item.fromCurrency || item.currency} $${item.fromAmount !== undefined ? item.fromAmount : item.amount}`;
-        } else if (item.actualToAccount === selectedBank) {
-          amountPrefix = '+';
-          displayAmtStr = `+${item.toCurrency || item.currency} $${item.toAmount !== undefined ? item.toAmount : item.toAmount}`;
-          typeClass = 'income';
-        }
-      }
-
-      let editDeleteButtons = item.id.toString().startsWith('interest-') ? '' : `
-        <button class="btn-edit" onclick="editRecord('${item.id}')" title="修改">✎</button>
-        <button class="btn-delete" onclick="deleteRecord('${item.id}')" title="刪除">✕</button>
-      `;
-
       html += `
-        <div class="item ${typeClass}">
+        <div class="item ${item.type || 'expense'}">
           <div class="item-info">
             <div class="title">${item.category} ${item.note ? `<span>(${item.note})</span>` : ''}</div>
             <div class="sub"><span>📅 ${item.date}</span> <span class="tag">🏛️ ${selectedBank}</span></div>
           </div>
           <div class="item-amount">
-            <div class="item-amount-row">
-              <span class="amount-text">${displayAmtStr}</span>
-              ${editDeleteButtons}
-            </div>
+            <span class="amount-text">${prefix}${curr} $${amt.toFixed(2)}</span>
           </div>
         </div>
       `;
     });
     container.innerHTML = html;
+  }
+
+  function renderCreditSection() {
+    const calculatedCredits = calculateCreditBalancesFromRecords();
+    let grandTotalMOP = 0, currentMonthSpendMOP = 0;
+    let editorHtml = '';
+    const now = new Date();
+    const curY = now.getFullYear(), curM = now.getMonth() + 1;
+
+    CREDIT_LIST.forEach(cardName => {
+      const currMap = calculatedCredits[cardName] || { MOP: 0, HKD: 0, CNY: 0 };
+      let cardMopSum = 0, currGridHtml = '';
+      ['MOP', 'HKD', 'CNY'].forEach(c => {
+        const val = currMap[c] || 0;
+        cardMopSum += convertToMOP(val, c);
+        currGridHtml += `<div class="curr-item"><span class="curr-name">${c}</span><span class="curr-val">${val.toFixed(2)}</span></div>`;
+      });
+      grandTotalMOP += cardMopSum;
+
+      editorHtml += `
+        <div class="bank-card" style="border-color: #FBCFE8;">
+          <div class="credit-card-title">
+            <span>💳 ${cardName}</span>
+            <span>未清帳款: MOP$ ${cardMopSum.toFixed(2)}</span>
+          </div>
+          <div class="bank-currency-grid">${currGridHtml}</div>
+          <div class="bank-edit-group">
+            <div class="bank-edit-row">
+              <select id="credit-edit-curr-${cardName}"><option value="MOP">MOP</option><option value="HKD">HKD</option><option value="CNY">CNY</option></select>
+              <input type="number" id="credit-edit-amt-${cardName}" placeholder="設定/修正結餘" step="0.01">
+              <button type="button" class="btn-sm-save" style="background: var(--credit);" onclick="updateCreditBalance('${cardName}')">設定</button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    const records = loadRecords();
+    records.forEach(item => {
+      if (!item.date) return;
+      const [iY, iM] = item.date.split('-').map(Number);
+      if (iY === curY && iM === curM && (item.type === 'expense' || !item.type) && CREDIT_LIST.includes(item.actualAccount)) {
+        currentMonthSpendMOP += convertToMOP(item.fromAmount !== undefined ? item.fromAmount : item.amount, item.fromCurrency || item.currency);
+      }
+    });
+
+    document.getElementById('credit-total-balance').textContent = `MOP$ ${grandTotalMOP.toFixed(2)}`;
+    document.getElementById('credit-month-spend').textContent = `MOP$ ${currentMonthSpendMOP.toFixed(2)}`;
+    document.getElementById('credit-cards-editor-container').innerHTML = editorHtml;
+    renderCreditFlowList();
+  }
+
+  function updateCreditBalance(cardName) {
+    const curr = document.getElementById(`credit-edit-curr-${cardName}`).value;
+    const inputVal = parseFloat(document.getElementById(`credit-edit-amt-${cardName}`).value);
+    if (isNaN(inputVal)) { alert('請輸入有效金額'); return; }
+    const baseBalances = loadCreditBaseBalances();
+    if (!baseBalances[cardName]) baseBalances[cardName] = { MOP: 0, HKD: 0, CNY: 0 };
+    baseBalances[cardName][curr] = parseFloat(inputVal.toFixed(2));
+    saveCreditBaseBalances(baseBalances);
+    renderApp();
+  }
+
+  function renderCreditFlowList() {
+    const container = document.getElementById('credit-transaction-list');
+    const selectedCard = document.getElementById('credit-flow-select').value;
+    const records = loadRecords();
+    let filtered = records.filter(item => {
+      const matchCard = selectedCard === 'ALL' ? CREDIT_LIST.includes(item.actualAccount) || CREDIT_LIST.includes(item.actualToAccount) : (item.actualAccount === selectedCard || item.actualToAccount === selectedCard);
+      return matchCard;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-state">尚無信用卡消費或還款紀錄</div>';
+      return;
+    }
+
+    let html = '';
+    filtered.forEach(item => {
+      const curr = item.currency || item.fromCurrency || 'MOP';
+      const amt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+      html += `
+        <div class="item ${item.type || 'expense'}">
+          <div class="item-info">
+            <div class="title">${item.category} ${item.note ? `<span>(${item.note})</span>` : ''}</div>
+            <div class="sub"><span>📅 ${item.date}</span> <span class="tag credit-tag">💳 ${item.account || item.toAccount}</span></div>
+          </div>
+          <div class="item-amount">
+            <span class="amount-text">${item.type === 'transfer' ? '⇄ 還款' : '-'}${curr} $${amt.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+
+  function addMPFAccount() {
+    const nameInput = document.getElementById('new-mpf-acc-name');
+    const balInput = document.getElementById('new-mpf-acc-balance');
+    const name = nameInput.value.trim();
+    const balance = parseFloat(balInput.value);
+    if (!name || isNaN(balance)) { alert('請輸入帳戶名稱與初始餘額'); return; }
+    
+    let accounts = loadMPFAccountsData();
+    accounts.push({ id: Date.now().toString(), name: name, initialBalance: balance, balance: balance });
+    saveMPFAccountsData(accounts);
+    nameInput.value = ''; balInput.value = '';
+    renderMPFSection();
+  }
+
+  function deleteMPFAccount(id) {
+    if (!confirm('確定刪除此 MPF 帳戶嗎？')) return;
+    let accounts = loadMPFAccountsData().filter(acc => acc.id !== id);
+    saveMPFAccountsData(accounts);
+    renderMPFSection();
+  }
+
+  function saveMPFMonthlyRecord() {
+    const month = document.getElementById('mpf-rec-month').value;
+    const accId = document.getElementById('mpf-rec-account').value;
+    const balance = parseFloat(document.getElementById('mpf-rec-balance').value);
+    const contrib = parseFloat(document.getElementById('mpf-rec-contrib').value) || 0;
+    if (!month || !accId || isNaN(balance)) { alert('請填寫完整 MPF 月度結餘資訊'); return; }
+
+    let records = loadMPFMonthlyRecordsData();
+    records = records.filter(r => !(r.month === month && r.accountId === accId));
+    records.push({ id: Date.now().toString(), month, accountId: accId, balance, contrib });
+    saveMPFMonthlyRecordsData(records);
+    document.getElementById('mpf-rec-balance').value = '';
+    document.getElementById('mpf-rec-contrib').value = '';
+    renderMPFSection();
+  }
+
+  function deleteMPFMonthlyRecord(id) {
+    let records = loadMPFMonthlyRecordsData().filter(r => r.id !== id);
+    saveMPFMonthlyRecordsData(records);
+    renderMPFSection();
+  }
+
+  function renderMPFSection() {
+    const accounts = loadMPFAccountsData();
+    const monthlyRecords = loadMPFMonthlyRecordsData();
+    
+    let accSelectHtml = '<option value="" disabled selected>選擇 MPF 帳戶</option>';
+    let accountsHtml = '';
+    let totalMPFBal = 0;
+
+    accounts.forEach(acc => {
+      accSelectHtml += `<option value="${acc.id}">${acc.name}</option>`;
+      totalMPFBal += acc.balance;
+      accountsHtml += `
+        <div class="item income">
+          <div class="item-info">
+            <div class="title">🛡️ ${acc.name}</div>
+            <div class="sub"><span>初始/當前餘額</span></div>
+          </div>
+          <div class="item-amount" style="flex-direction:row; align-items:center; gap:6px;">
+            <span class="amount-text">HK$ ${acc.balance.toFixed(2)}</span>
+            <button class="btn-delete" onclick="deleteMPFAccount('${acc.id}')">✕</button>
+          </div>
+        </div>
+      `;
+    });
+
+    document.getElementById('mpf-rec-account').innerHTML = accSelectHtml;
+    document.getElementById('mpf-accounts-container').innerHTML = accountsHtml || '<div class="empty-state">尚無 MPF 帳戶</div>';
+    document.getElementById('mpf-account-count').textContent = `${accounts.length} 個`;
+    document.getElementById('mpf-total-balance').textContent = `HK$ ${totalMPFBal.toFixed(2)}`;
+
+    let sortedRecords = [...monthlyRecords].sort((a, b) => a.month.localeCompare(b.month));
+    let tableHtml = '';
+    let latestGrowth = 0;
+    let latestMonthLabel = '-';
+
+    if (sortedRecords.length > 0) {
+      latestMonthLabel = sortedRecords[sortedRecords.length - 1].month;
+      sortedRecords.forEach((rec, idx) => {
+        const acc = accounts.find(a => a.id === rec.accountId);
+        const accName = acc ? acc.name : '未知帳戶';
+        
+        let prevRec = sortedRecords.slice(0, idx).reverse().find(r => r.accountId === rec.accountId);
+        let diff = prevRec ? (rec.balance - prevRec.balance - rec.contrib) : 0;
+        if (!prevRec) diff = rec.balance - (acc ? acc.initialBalance : 0);
+        
+        if (idx === sortedRecords.length - 1) latestGrowth = diff;
+
+        tableHtml += `
+          <tr>
+            <td>${rec.month}</td>
+            <td>${accName}</td>
+            <td>HK$ ${rec.balance.toFixed(2)}</td>
+            <td>HK$ ${rec.contrib.toFixed(2)}</td>
+            <td><span class="${diff >= 0 ? 'mpf-diff-positive' : 'mpf-diff-negative'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</span></td>
+            <td><button class="btn-delete" onclick="deleteMPFMonthlyRecord('${rec.id}')">✕</button></td>
+          </tr>
+        `;
+      });
+    } else {
+      tableHtml = '<tr><td colspan="6" class="empty-state">尚無變動紀錄</td></tr>';
+    }
+
+    document.getElementById('mpf-comparison-tbody').innerHTML = tableHtml;
+    document.getElementById('mpf-month-growth').textContent = `HK$ ${latestGrowth.toFixed(2)}`;
+    document.getElementById('mpf-latest-month-label').textContent = latestMonthLabel;
+  }
+
+  function executeGlobalAssetDeduct() {
+    const curr = document.getElementById('asset-deduct-curr').value;
+    const amt = parseFloat(document.getElementById('asset-deduct-amt').value);
+    const note = document.getElementById('asset-deduct-note').value.trim();
+    if (isNaN(amt) || amt <= 0) { alert('請輸入有效扣減金額'); return; }
+
+    let deductions = loadGlobalDeductions();
+    deductions.push({ id: Date.now().toString(), date: today.toISOString().split('T')[0], currency: curr, amount: amt, note: note || '總資產扣減' });
+    saveGlobalDeductions(deductions);
+    document.getElementById('asset-deduct-amt').value = '';
+    document.getElementById('asset-deduct-note').value = '';
+    renderAssetSection();
+  }
+
+  function deleteGlobalDeduction(id) {
+    let deductions = loadGlobalDeductions().filter(d => d.id !== id);
+    saveGlobalDeductions(deductions);
+    renderAssetSection();
+  }
+
+  function renderAssetSection() {
+    const calculatedBanks = calculateBankBalancesFromRecords();
+    let totalBankMOP = 0;
+    
+    let currencyTotals = { MOP: 0, HKD: 0, CNY: 0 };
+
+    Object.keys(calculatedBanks).forEach(b => {
+      const currMap = calculatedBanks[b];
+      ['MOP', 'HKD', 'CNY'].forEach(c => {
+        const val = currMap[c] || 0;
+        currencyTotals[c] += val;
+        totalBankMOP += convertToMOP(val, c);
+      });
+    });
+
+    const mpfAccounts = loadMPFAccountsData();
+    let totalMPFHKD = 0;
+    mpfAccounts.forEach(acc => totalMPFHKD += acc.balance);
+    const totalMPFMOP = convertToMOP(totalMPFHKD, 'HKD');
+    
+    currencyTotals['HKD'] += totalMPFHKD;
+
+    let totalDeductionsMOP = 0;
+    const deductions = loadGlobalDeductions();
+    let deductHtml = '';
+    deductions.forEach(d => {
+      const mopVal = convertToMOP(d.amount, d.currency);
+      totalDeductionsMOP += mopVal;
+      currencyTotals[d.currency] -= d.amount;
+      deductHtml += `
+        <div class="item expense">
+          <div class="item-info">
+            <div class="title">📉 ${d.note}</div>
+            <div class="sub"><span>📅 ${d.date}</span></div>
+          </div>
+          <div class="item-amount" style="flex-direction:row; align-items:center; gap:6px;">
+            <span class="amount-text">-${d.currency} $${d.amount.toFixed(2)}</span>
+            <button class="btn-delete" onclick="deleteGlobalDeduction('${d.id}')">✕</button>
+          </div>
+        </div>
+      `;
+    });
+    document.getElementById('asset-deductions-list').innerHTML = deductHtml || '<div class="empty-state">尚無扣減紀錄</div>';
+
+    const grandTotalAssetMOP = totalBankMOP + totalMPFMOP - totalDeductionsMOP;
+
+    document.getElementById('asset-grand-total').textContent = `MOP$ ${grandTotalAssetMOP.toFixed(2)}`;
+    document.getElementById('asset-bank-val').textContent = `MOP$ ${totalBankMOP.toFixed(2)}`;
+    document.getElementById('asset-mpf-val').textContent = `MOP$ ${totalMPFMOP.toFixed(2)}`;
+
+    let breakdownHtml = `
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>🏛️ 銀行存款總計</span><span>MOP$ ${totalBankMOP.toFixed(2)}</span></div></div>
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>🛡️ 強積金總計 (折合)</span><span>MOP$ ${totalMPFMOP.toFixed(2)}</span></div></div>
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>📉 總資產扣減總計</span><span>-MOP$ ${totalDeductionsMOP.toFixed(2)}</span></div></div>
+    `;
+    document.getElementById('asset-breakdown-list').innerHTML = breakdownHtml;
+
+    let ratioHtml = '';
+    if (grandTotalAssetMOP > 0) {
+      const bankRatio = ((totalBankMOP / grandTotalAssetMOP) * 100).toFixed(2);
+      const mpfRatio = ((totalMPFMOP / grandTotalAssetMOP) * 100).toFixed(2);
+      ratioHtml = `
+        <div class="cat-progress-item">
+          <div class="cat-progress-info"><span>🏛️ 銀行存款佔比</span><span>${bankRatio}%</span></div>
+          <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${bankRatio}%; background: var(--bank);"></div></div>
+        </div>
+        <div class="cat-progress-item">
+          <div class="cat-progress-info"><span>🛡️ 強積金佔比</span><span>${mpfRatio}%</span></div>
+          <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${mpfRatio}%; background: var(--mpf);"></div></div>
+        </div>
+      `;
+    } else {
+      ratioHtml = '<div class="empty-state">目前無有效總資產數據</div>';
+    }
+    document.getElementById('asset-ratio-list').innerHTML = ratioHtml;
+
+    let currencyDistHtml = '';
+    Object.keys(currencyTotals).forEach(curr => {
+      const amt = currencyTotals[curr];
+      const mopVal = convertToMOP(amt, curr);
+      const percentage = grandTotalAssetMOP > 0 ? ((mopVal / grandTotalAssetMOP) * 100).toFixed(2) : '0.00';
+      currencyDistHtml += `
+        <div class="cat-progress-item">
+          <div class="cat-progress-info"><span>💱 ${curr} 總額</span><span>${curr} $${amt.toFixed(2)} (≈ MOP$ ${mopVal.toFixed(2)} | ${percentage}%)</span></div>
+          <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${percentage}%; background: var(--asset);"></div></div>
+        </div>
+      `;
+    });
+    document.getElementById('asset-currency-distribution-list').innerHTML = currencyDistHtml;
+  }
+
+  function exportJSONBackup() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cloudData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `budget_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
+
+  function importJSONBackup(event) {
+    const fileReader = new FileReader();
+    if (event.target.files[0]) {
+      fileReader.readAsText(event.target.files[0], "UTF-8");
+      fileReader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && parsed.records) {
+            cloudData = parsed;
+            syncToFirebase();
+            alert('備份匯入成功！');
+          } else {
+            alert('JSON 格式錯誤！');
+          }
+        } catch (err) {
+          alert('解析 JSON 檔案失敗：' + err.message);
+        }
+      };
+    }
+  }
+
+  function exportMonthCSV() {
+    const records = loadRecords();
+    const selectedMonthVal = filterMonthInput.value;
+    const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
+    let csvContent = "\uFEFF日期,類型,帳戶,分類,金額,幣別,備註\n";
+    records.forEach(item => {
+      if (!item.date) return;
+      const [iY, iM] = item.date.split('-').map(Number);
+      if (iY === sYear && iM === sMonth) {
+        csvContent += `${item.date},${item.type},${item.account || item.fromAccount},${item.category},${item.amount},${item.currency || item.fromCurrency},"${item.note || ''}"\n`;
+      }
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `monthly_${selectedMonthVal}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  function exportYearCSV() {
+    const records = loadRecords();
+    const selectedYear = document.getElementById('filter-year').value;
+    let csvContent = "\uFEFF日期,類型,帳戶,分類,金額,幣別,備註\n";
+    records.forEach(item => {
+      if (!item.date) return;
+      if (item.date.startsWith(selectedYear)) {
+        csvContent += `${item.date},${item.type},${item.account || item.fromAccount},${item.category},${item.amount},${item.currency || item.fromCurrency},"${item.note || ''}"\n`;
+      }
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `yearly_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 </script>
 </body>
