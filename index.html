@@ -2,9 +2,9 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- 加入 viewport-fit=cover 讓 iOS 底部安全區域 (Home Indicator) 生效 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>雲端記帳本</title>
-  <!-- 引入 Firebase SDK (Compat 版本，方便直接嵌入單一 HTML) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
@@ -31,14 +31,19 @@
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
+      /* 讓所有支援滾動的容器擁有蘋果原生的順暢滾動感 */
+      -webkit-overflow-scrolling: touch; 
     }
+    
     body {
       background-color: var(--bg);
       color: var(--text);
       display: flex;
       justify-content: center;
-      padding: 12px 12px 95px 12px;
-      min-height: 100vh;
+      /* padding 底部加入 env(safe-area-inset-bottom) 避開 Home Indicator */
+      padding: 12px 12px calc(95px + env(safe-area-inset-bottom)) 12px;
+      /* 使用 100dvh 完美避開 iOS 的上下工具列 */
+      min-height: 100dvh;
     }
     .app-container {
       width: 100%;
@@ -50,7 +55,8 @@
     }
 
     @media (min-width: 768px) {
-      body { padding: 24px 16px 105px 16px; }
+      /* 桌面版同樣加入 safe-area 變數以防萬一 */
+      body { padding: 24px 16px calc(105px + env(safe-area-inset-bottom)) 16px; }
       .app-container { max-width: 768px; }
       .nav-btn { font-size: 13px; padding: 8px 4px; }
       .dashboard .total-balance { font-size: 32px; }
@@ -88,10 +94,13 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      padding: 8px 12px;
-      border-top: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+      /* 加入毛玻璃特效以美化底部導航列 */
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      /* padding 底部加入 env(safe-area-inset-bottom) 避開 Home Indicator */
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) 12px;
+      border-top: 1px solid rgba(226, 232, 240, 0.6);
       display: flex;
       gap: 4px;
       z-index: 1000;
@@ -248,15 +257,19 @@
     .type-btn.active[data-type="income"] { background: var(--income); color: white; }
     .type-btn.active[data-type="transfer"] { background: var(--transfer); color: white; }
     .input-row { display: flex; gap: 6px; }
+    
+    /* 強制輸入框字體為 16px，防止 iOS 自動放大縮放 */
     input, select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
       border-radius: 10px;
-      font-size: 14px;
+      font-size: 16px !important; 
       outline: none;
       background-color: #FAFAFA;
+      -webkit-appearance: none; /* 移除 iOS 預設的按鈕與輸入框外觀 */
     }
+    
     input:focus, select:focus { border-color: var(--primary); background-color: #FFF; }
     .bind-tip { font-size: 11px; color: #0284C7; background: #E0F2FE; padding: 6px 10px; border-radius: 6px; display: none; }
     .category-grid-container { display: flex; flex-direction: column; gap: 4px; }
@@ -366,8 +379,8 @@
     .interest-note { font-size: 10px; color: #10B981; margin-top: 4px; font-weight: 600; }
     .bank-edit-group { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
     .bank-edit-row { display: flex; gap: 6px; align-items: center; }
-    .bank-edit-row select { width: 90px; padding: 6px; font-size: 11px; }
-    .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 11px; }
+    .bank-edit-row select { width: 90px; padding: 6px; font-size: 16px !important; } /* 同步修正 bank 行內選擇器大小 */
+    .bank-edit-row input { flex: 1; padding: 6px 8px; font-size: 16px !important; } /* 同步修正 bank 行內輸入框大小 */
     .btn-sm-save { background: var(--bank); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     .btn-sm-add { background: var(--income); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     .btn-sm-sub { background: var(--expense); color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; }
