@@ -458,6 +458,7 @@
             <input type="number" id="amount" placeholder="金額" step="0.01" required oninput="autoCalculateTransferToAmount()">
           </div>
 
+          <!-- 轉帳專用：可自訂轉入幣別與到帳金額 (支援 CNY 等任意貨幣自訂) -->
           <div class="input-row" id="row-transfer-target" style="display: none; align-items: center; background: #F3E8FF; padding: 8px; border-radius: 10px;">
             <span style="font-size: 11px; font-weight: bold; color: #6D28D9; white-space: nowrap;">轉入金額：</span>
             <select id="to-currency" style="width: 100px;" onchange="autoCalculateTransferToAmount()">
@@ -2222,33 +2223,24 @@
         </div>
       `;
     } else {
-      ratioHtml = '<div class="empty-state">目前無有效總資產數據</div>';
+      ratioHtml = '<div class="empty-state">總資產為零或負數</div>';
     }
     document.getElementById('asset-ratio-list').innerHTML = ratioHtml;
 
-    let currencyDistHtml = '';
-    Object.keys(currencyTotals).forEach(curr => {
-      const amt = currencyTotals[curr];
-      const mopVal = convertToMOP(amt, curr);
-      const percentage = grandTotalAssetMOP > 0 ? ((mopVal / grandTotalAssetMOP) * 100).toFixed(2) : '0.00';
-      currencyDistHtml += `
-        <div class="cat-progress-item">
-          <div class="cat-progress-info"><span>💱 ${curr} 總額</span><span>${curr} $${amt.toFixed(2)} (≈ MOP$ ${mopVal.toFixed(2)} | ${percentage}%)</span></div>
-          <div class="cat-progress-bar-bg"><div class="cat-progress-bar-fill" style="width: ${percentage}%; background: var(--asset);"></div></div>
-        </div>
-      `;
-    });
-    document.getElementById('asset-currency-distribution-list').innerHTML = currencyDistHtml;
+    let currDistHtml = `
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>MOP 總分佈</span><span>MOP$ ${currencyTotals['MOP'].toFixed(2)}</span></div></div>
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>HKD 總分佈 (折合)</span><span>MOP$ ${convertToMOP(currencyTotals['HKD'], 'HKD').toFixed(2)}</span></div></div>
+      <div class="cat-progress-item"><div class="cat-progress-info"><span>CNY 總分佈 (折合)</span><span>MOP$ ${convertToMOP(currencyTotals['CNY'], 'CNY').toFixed(2)}</span></div></div>
+    `;
+    document.getElementById('asset-currency-distribution-list').innerHTML = currDistHtml;
   }
 
   function exportJSONBackup() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cloudData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `budget_backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `cloud_accounting_backup_${today.toISOString().split('T')[0]}.json`);
+    dlAnchorElem.click();
   }
 
   function importJSONBackup(event) {
@@ -2261,9 +2253,9 @@
           if (parsed && parsed.records) {
             cloudData = parsed;
             syncToFirebase();
-            alert('備份匯入成功！');
+            alert('備份還原成功！');
           } else {
-            alert('JSON 格式錯誤！');
+            alert('檔案格式錯誤！');
           }
         } catch (err) {
           alert('解析 JSON 檔案失敗：' + err.message);
@@ -2275,43 +2267,51 @@
   function exportMonthCSV() {
     const records = loadRecords();
     const selectedMonthVal = filterMonthInput.value;
+    if (!selectedMonthVal) { alert('請先選擇月份'); return; }
     const [sYear, sMonth] = selectedMonthVal.split('-').map(Number);
-    let csvContent = "\uFEFF日期,類型,帳戶,分類,金額,幣別,備註\n";
+
+    let csvContent = "\uFEFF日期,類型,分類,金額,幣別,帳戶,備註\n";
     records.forEach(item => {
       if (!item.date) return;
       const [iY, iM] = item.date.split('-').map(Number);
       if (iY === sYear && iM === sMonth) {
-        csvContent += `${item.date},${item.type},${item.account || item.fromAccount},${item.category},${item.amount},${item.currency || item.fromCurrency},"${item.note || ''}"\n`;
+        const amt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+        const curr = item.fromCurrency || item.currency;
+        const acc = item.type === 'transfer' ? `${item.fromAccount} ➔ ${item.toAccount}` : item.account;
+        csvContent += `${item.date},${item.type || 'expense'},${item.category || ''},${amt},${curr},"${acc}","${item.note || ''}"\n`;
       }
     });
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `monthly_${selectedMonthVal}.csv`);
-    document.body.appendChild(link);
+    link.setAttribute("download", `monthly_accounting_${selectedMonthVal}.csv`);
     link.click();
-    link.remove();
   }
 
   function exportYearCSV() {
+    const selectedYear = parseInt(document.getElementById('filter-year').value, 10) || currentYear;
     const records = loadRecords();
-    const selectedYear = document.getElementById('filter-year').value;
-    let csvContent = "\uFEFF日期,類型,帳戶,分類,金額,幣別,備註\n";
+
+    let csvContent = "\uFEFF日期,類型,分類,金額,幣別,帳戶,備註\n";
     records.forEach(item => {
       if (!item.date) return;
-      if (item.date.startsWith(selectedYear)) {
-        csvContent += `${item.date},${item.type},${item.account || item.fromAccount},${item.category},${item.amount},${item.currency || item.fromCurrency},"${item.note || ''}"\n`;
+      const iY = parseInt(item.date.split('-')[0], 10);
+      if (iY === selectedYear) {
+        const amt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
+        const curr = item.fromCurrency || item.currency;
+        const acc = item.type === 'transfer' ? `${item.fromAccount} ➔ ${item.toAccount}` : item.account;
+        csvContent += `${item.date},${item.type || 'expense'},${item.category || ''},${amt},${curr},"${acc}","${item.note || ''}"\n`;
       }
     });
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `yearly_${selectedYear}.csv`);
-    document.body.appendChild(link);
+    link.setAttribute("download", `yearly_accounting_${selectedYear}.csv`);
     link.click();
-    link.remove();
   }
 </script>
 </body>
