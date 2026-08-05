@@ -288,29 +288,31 @@
             background: var(--bg);
         }
 
-        /* ===== 底部導航 ===== */
         .nav-tabs {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 16px; /* 距離底部保留一點空間，形成懸浮感 */
+            left: 50%;    /* 從畫面左側 50% 開始 */
+            transform: translateX(-50%); /* 向左平移自身寬度的一半，達成完美置中 */
+            width: calc(100% - 32px); /* 留出左右邊距，避免貼平螢幕邊緣 */
+            max-width: 480px; /* 維持最大寬度限制 */
             background: rgba(255, 255, 255, 0.82);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            padding: 6px 6px calc(6px + env(safe-area-inset-bottom)) 6px;
-            border-top: 1px solid rgba(226, 232, 240, 0.5);
+            padding: 6px;
+            border-top: none; /* 懸浮通常不需要頂部邊線 */
+            border: 1px solid rgba(226, 232, 240, 0.8); /* 改為四周完整的細邊框 */
+            border-radius: 20px; /* 加上圓角，呈現卡片感 */
             display: flex;
             gap: 2px;
             z-index: 1000;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.04);
-            max-width: 480px;
-            margin: 0 auto;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); /* 調整全方位的立體陰影 */
+            margin: 0;
         }
         .nav-btn {
             flex: 1;
             border: none;
             padding: 6px 2px;
-            border-radius: 10px;
+            border-radius: 14px; /* 按鈕圓角配合容器調整 */
             font-weight: 700;
             font-size: 11px;
             cursor: pointer;
