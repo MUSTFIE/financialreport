@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>雲端記帳本 · 優化版</title>
+    <title>雲端記帳本 · 手機優化版</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
     </script>
@@ -35,6 +35,7 @@
             --shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.10);
             --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --touch-target: 44px;
         }
         * {
             box-sizing: border-box;
@@ -48,7 +49,7 @@
             color: var(--text);
             display: flex;
             justify-content: center;
-            padding: 12px 12px calc(100px + env(safe-area-inset-bottom)) 12px;
+            padding: 12px 12px calc(90px + env(safe-area-inset-bottom)) 12px;
             min-height: 100dvh;
             -webkit-font-smoothing: antialiased;
         }
@@ -72,15 +73,106 @@
                 grid-template-columns: 1fr 1fr;
                 gap: 14px;
             }
-            /* ==== 修改點：導航欄在桌面版佔滿全屏 ==== */
-          .nav-tabs {
+            /* 桌面導航全屏 */
+            .nav-tabs {
 max-width: 100%;
 border-radius: 0;
 left: 0;
 transform: none;
 width: 100%;
 }
+        }
 
+        /* ===== 手機專屬優化 ===== */
+        @media (max-width: 480px) {
+            .category-grid {
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px;
+            }
+            .cat-block {
+                min-height: 48px;
+                padding: 4px 2px;
+            }
+            .cat-block .cat-icon {
+                font-size: 16px;
+            }
+            .cat-block .cat-label {
+                font-size: 9px;
+            }
+            .nav-btn {
+                font-size: 10px;
+                padding: 4px 0;
+            }
+            .nav-btn .icon {
+                font-size: 16px;
+            }
+            .dash .total {
+                font-size: 22px;
+            }
+            .dash-item .value {
+                font-size: 13px;
+            }
+            .form-row {
+                gap: 4px;
+            }
+            input, select {
+                padding: 10px 8px;
+                font-size: 16px !important;
+            }
+            .tx-item {
+                padding: 8px 10px;
+            }
+            .tx-item .info .title {
+                font-size: 13px;
+            }
+            .bank-edit .row {
+                flex-wrap: wrap;
+            }
+            .bank-edit .row select {
+                width: 70px;
+            }
+            .bank-edit .row input {
+                min-width: 60px;
+            }
+            .btn-sm {
+                padding: 6px 8px;
+                font-size: 11px;
+            }
+            .card {
+                padding: 12px;
+            }
+            .card-title {
+                font-size: 14px;
+            }
+            .auth-bar {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            .auth-user img {
+                width: 24px;
+                height: 24px;
+            }
+            .btn {
+                font-size: 12px;
+                padding: 4px 12px;
+            }
+            .toolbar .btn-tool {
+                font-size: 11px;
+                padding: 6px;
+            }
+            .status-badge, .rate-badge {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            .dash .controls select, .dash .controls input {
+                font-size: 11px;
+                padding: 2px 6px;
+            }
+            .dash .controls .btn-export {
+                font-size: 11px;
+                padding: 2px 8px;
+            }
+        }
 
         /* ===== 元件 ===== */
         .card {
@@ -162,6 +254,10 @@ width: 100%;
             font-size: 13px;
             cursor: pointer;
             transition: var(--transition);
+            min-height: var(--touch-target);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .btn-primary {
             background: var(--primary);
@@ -195,7 +291,7 @@ width: 100%;
             background: rgba(255, 255, 255, 0.82);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            padding: 6px 10px calc(6px + env(safe-area-inset-bottom)) 10px;
+            padding: 6px 6px calc(6px + env(safe-area-inset-bottom)) 6px;
             border-top: 1px solid rgba(226, 232, 240, 0.5);
             display: flex;
             gap: 2px;
@@ -220,8 +316,9 @@ width: 100%;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2px;
+            gap: 1px;
             line-height: 1.2;
+            min-height: var(--touch-target);
         }
         .nav-btn .icon {
             font-size: 18px;
@@ -301,6 +398,7 @@ width: 100%;
             font-size: 12px;
             outline: none;
             cursor: pointer;
+            min-height: 32px;
         }
         .dash .controls select option {
             color: var(--text);
@@ -316,6 +414,9 @@ width: 100%;
             font-weight: 600;
             cursor: pointer;
             transition: var(--transition);
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
         }
         .dash .controls .btn-export:hover {
             background: rgba(255, 255, 255, 0.30);
@@ -347,6 +448,7 @@ width: 100%;
             background: #FAFAFA;
             transition: var(--transition);
             -webkit-appearance: none;
+            min-height: var(--touch-target);
         }
         input:focus,
         select:focus {
@@ -372,6 +474,7 @@ width: 100%;
             background: transparent;
             color: var(--muted);
             transition: var(--transition);
+            min-height: var(--touch-target);
         }
         .type-btn.active[data-type="expense"] {
             background: var(--expense);
@@ -395,6 +498,7 @@ width: 100%;
             font-size: 15px;
             cursor: pointer;
             transition: var(--transition);
+            min-height: var(--touch-target);
         }
         .btn-submit:hover {
             background: var(--primary-dark);
@@ -458,10 +562,10 @@ width: 100%;
             color: #fff;
             border: none;
             border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 11px;
-            line-height: 18px;
+            width: 22px;
+            height: 22px;
+            font-size: 12px;
+            line-height: 22px;
             text-align: center;
             cursor: pointer;
             display: flex;
@@ -580,9 +684,14 @@ width: 100%;
             border: none;
             color: var(--muted);
             cursor: pointer;
-            font-size: 14px;
-            padding: 2px 4px;
+            font-size: 16px;
+            padding: 4px 6px;
             transition: var(--transition);
+            min-height: 36px;
+            min-width: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .tx-item .actions button:hover {
             color: var(--primary);
@@ -652,12 +761,14 @@ width: 100%;
             width: 80px;
             padding: 6px;
             font-size: 16px !important;
+            min-height: 36px;
         }
         .bank-edit .row input {
             flex: 1;
             padding: 6px 8px;
             font-size: 16px !important;
             min-width: 80px;
+            min-height: 36px;
         }
         .btn-sm {
             padding: 6px 12px;
@@ -668,6 +779,10 @@ width: 100%;
             cursor: pointer;
             transition: var(--transition);
             white-space: nowrap;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .btn-sm.primary {
             background: var(--primary);
@@ -791,6 +906,10 @@ width: 100%;
             cursor: pointer;
             transition: var(--transition);
             text-align: center;
+            min-height: var(--touch-target);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .toolbar .btn-tool:hover {
             background: var(--border);
@@ -2801,7 +2920,7 @@ width: 100%;
 
         // 監聽 resize 更新布局
         window.addEventListener('resize', () => {});
-        console.log('📒 雲端記帳本已優化啟動');
+        console.log('📒 雲端記帳本 (手機優化版) 已啟動');
     </script>
 
 </body>
