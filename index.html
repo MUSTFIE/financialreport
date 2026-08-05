@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>雲端記帳本 · 手機優化版</title>
+    <title>雲端記帳本</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
     </script>
@@ -73,13 +73,16 @@
                 grid-template-columns: 1fr 1fr;
                 gap: 14px;
             }
-            /* 桌面導航全屏 */
+            /* ===== MODIFIED 1: 桌面導航置中、寬度受限 ===== */
             .nav-tabs {
-                max-width: 100% !important;
-                border-radius: 0 !important;
-                left: 0 !important;
-                transform: none !important;
-                width: 100% !important;
+                left: 50%;
+                transform: translateX(-50%);
+                width: auto;
+                max-width: 820px;
+                border-radius: var(--radius);
+                /* 保留圓角 */
+                margin: 0 auto;
+                /* 額外安全 */
             }
         }
 
@@ -115,7 +118,8 @@
             .form-row {
                 gap: 4px;
             }
-            input, select {
+            input,
+            select {
                 padding: 10px 8px;
                 font-size: 16px !important;
             }
@@ -160,11 +164,13 @@
                 font-size: 11px;
                 padding: 6px;
             }
-            .status-badge, .rate-badge {
+            .status-badge,
+            .rate-badge {
                 font-size: 10px;
                 padding: 4px 8px;
             }
-            .dash .controls select, .dash .controls input {
+            .dash .controls select,
+            .dash .controls input {
                 font-size: 11px;
                 padding: 2px 6px;
             }
@@ -1078,12 +1084,7 @@
                                     <option value="BOC Pay">BOC Pay</option>
                                 </optgroup>
                                 <optgroup label="銀行戶口" id="bankOptGroup"></optgroup>
-                                <optgroup label="信用卡">
-                                    <option value="澳門中國銀行(信用卡)">澳門中銀 (信用卡)</option>
-                                    <option value="香港中國銀行(信用卡)">香港中銀 (信用卡)</option>
-                                    <option value="DBS(信用卡)">DBS (信用卡)</option>
-                                    <option value="AE(信用卡)">AE (信用卡)</option>
-                                </optgroup>
+                                <optgroup label="信用卡" id="creditOptGroup"></optgroup> <!-- MODIFIED: 信用卡選項會動態填入 -->
                             </select>
                         </div>
                         <div class="bind-tip" id="bindTip"></div>
@@ -1226,20 +1227,30 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- TAB: 信用卡 -->
+        <!-- TAB: 信用卡 (MODIFIED 新增自訂卡片區塊) -->
         <!-- ============================================================ -->
         <div class="tab" id="tab-credit">
             <div class="dash" style="background:linear-gradient(135deg,#D946EF,#BE185D);">
                 <span style="font-size:13px;opacity:0.85;">信用卡未清帳款總額 (折合 MOP)</span>
                 <div class="total" id="creditTotal">MOP$ 0.00</div>
                 <div class="dash-grid">
-                    <div class="dash-item"><span class="label">卡片數量</span><span class="value highlight" id="creditCardCount">4 張</span></div>
+                    <div class="dash-item"><span class="label">卡片數量</span><span class="value highlight" id="creditCardCount">0 張</span></div>
                     <div class="dash-item"><span class="label">當月刷卡消費</span><span class="value expense" id="creditMonthSpend">MOP$ 0.00</span></div>
                 </div>
             </div>
             <div class="grid-2">
                 <div class="card">
                     <div class="card-title">💳 信用卡管理</div>
+                    <!-- 新增自訂信用卡 -->
+                    <div class="bank-card" style="border-style:dashed;background:var(--bg);">
+                        <div class="header"><span>➕ 新增自訂信用卡</span></div>
+                        <div class="bank-edit">
+                            <div class="row">
+                                <input type="text" id="newCreditCardName" placeholder="卡片名稱 (如: 花旗銀行信用卡)">
+                                <button class="btn-sm credit" onclick="addCreditCard()">新增</button>
+                            </div>
+                        </div>
+                    </div>
                     <div id="creditEditorContainer"></div>
                 </div>
                 <div class="card">
@@ -1247,10 +1258,6 @@
                         <span>📜 信用卡流水</span>
                         <select id="creditFlowSelect" class="sort-select">
                             <option value="ALL">全部卡片</option>
-                            <option value="澳門中國銀行(信用卡)">澳門中銀</option>
-                            <option value="香港中國銀行(信用卡)">香港中銀</option>
-                            <option value="DBS(信用卡)">DBS</option>
-                            <option value="AE(信用卡)">AE</option>
                         </select>
                     </div>
                     <div class="tx-list" id="creditTxList"></div>
@@ -1267,7 +1274,7 @@
                 <div class="total" id="mpfTotal">HK$ 0.00</div>
                 <div class="dash-grid">
                     <div class="dash-item"><span class="label">戶口總數</span><span class="value income" id="mpfCount">0</span></div>
-                    <div class="dash-item"><span class="label">最近變動</span><span class="value highlight" id="mpfGrowth">HK$ 0.00</span></div>
+                    <div class="dash-item"><span class="label">月漲跌變動</span><span class="value highlight" id="mpfGrowth">HK$ 0.00</span></div> <!-- MODIFIED: 標籤改為 "月漲跌變動" -->
                     <div class="dash-item"><span class="label">記錄月份</span><span class="value" id="mpfLatestMonth">-</span></div>
                 </div>
             </div>
@@ -1382,7 +1389,7 @@
         // ====================================================================
         const EXCHANGE = { MOP: 1, HKD: 1.0314, CNY: 1.13 };
         const DEFAULT_BANKS = ['澳門螞蟻銀行', '澳門中國銀行', '澳門工商銀行', '澳門發展銀行', '香港恒生銀行'];
-        const CREDIT_CARDS = ['澳門中國銀行(信用卡)', '香港中國銀行(信用卡)', 'DBS(信用卡)', 'AE(信用卡)'];
+        const DEFAULT_CREDIT_CARDS = ['澳門中國銀行(信用卡)', '香港中國銀行(信用卡)', 'DBS(信用卡)', 'AE(信用卡)']; // 內建信用卡
         const BIND_MAP = { 'MPay': '澳門螞蟻銀行', 'BOC Pay': '澳門中國銀行' };
         const DEFAULT_CATEGORIES = [
             { name: '餐飲', icon: '🍔' }, { name: '交通', icon: '🚗' }, { name: '購物', icon: '🛍️' },
@@ -1400,14 +1407,15 @@
             mpfAccounts: [],
             mpfMonthlyRecords: [],
             customCategories: [],
-            deletedDefaultCategories: []
+            deletedDefaultCategories: [],
+            customCreditCards: [] // MODIFIED: 儲存自訂信用卡名稱
         };
 
         // 初始化默認銀行餘額
         DEFAULT_BANKS.forEach(b => {
             if (!cloud.bankBaseBalances[b]) cloud.bankBaseBalances[b] = { MOP: 0, HKD: 0, CNY: 0 };
         });
-        CREDIT_CARDS.forEach(c => {
+        DEFAULT_CREDIT_CARDS.forEach(c => {
             if (!cloud.creditBaseBalances[c]) cloud.creditBaseBalances[c] = { MOP: 0, HKD: 0, CNY: 0 };
         });
         // 默認 MPF
@@ -1436,6 +1444,8 @@
         function toMOP(amt, cur) { return amt * (EXCHANGE[cur] || 1); }
 
         function getBankList() { return [...DEFAULT_BANKS, ...(cloud.customBankList || [])]; }
+
+        function getCreditCardList() { return [...DEFAULT_CREDIT_CARDS, ...(cloud.customCreditCards || [])]; } // MODIFIED
 
         function getActual(acc) { return BIND_MAP[acc] || acc; }
 
@@ -1493,8 +1503,10 @@
                         if (!cloud.deletedDefaultCategories) cloud.deletedDefaultCategories = [];
                         if (!cloud.creditBaseBalances) {
                             cloud.creditBaseBalances = {};
-                            CREDIT_CARDS.forEach(c => cloud.creditBaseBalances[c] = { MOP: 0, HKD: 0, CNY: 0 });
+                            DEFAULT_CREDIT_CARDS.forEach(c => cloud.creditBaseBalances[c] = { MOP: 0, HKD: 0,
+                                CNY: 0 });
                         }
+                        if (!cloud.customCreditCards) cloud.customCreditCards = []; // MODIFIED
                     } else {
                         syncToFirebase();
                     }
@@ -1514,8 +1526,10 @@
                         if (!cloud.deletedDefaultCategories) cloud.deletedDefaultCategories = [];
                         if (!cloud.creditBaseBalances) {
                             cloud.creditBaseBalances = {};
-                            CREDIT_CARDS.forEach(c => cloud.creditBaseBalances[c] = { MOP: 0, HKD: 0, CNY: 0 });
+                            DEFAULT_CREDIT_CARDS.forEach(c => cloud.creditBaseBalances[c] = { MOP: 0, HKD: 0,
+                                CNY: 0 });
                         }
+                        if (!cloud.customCreditCards) cloud.customCreditCards = [];
                     }
                     renderAll();
                 });
@@ -1565,6 +1579,12 @@
         function setMPFRecords(r) { cloud.mpfMonthlyRecords = r;
             pushToCloud(); }
 
+        // MODIFIED: 自訂信用卡存取
+        function getCustomCreditCards() { return cloud.customCreditCards || []; }
+
+        function setCustomCreditCards(arr) { cloud.customCreditCards = arr;
+            pushToCloud(); }
+
         // ====================================================================
         //  螞蟻銀行利息計算
         // ====================================================================
@@ -1596,7 +1616,7 @@
                     const tAmt = item.toAmount !== undefined ? item.toAmount : item.amount;
                     if (item.type === 'income' && acc === '澳門螞蟻銀行') dailyChanges[d].income += toMOP(fAmt, fCur);
                     if ((item.type === 'expense' || !item.type) && acc === '澳門螞蟻銀行') dailyChanges[d].expense += toMOP(
-                    fAmt, fCur);
+                        fAmt, fCur);
                     if (item.type === 'transfer') {
                         if (fromAcc === '澳門螞蟻銀行') dailyChanges[d].tout += toMOP(fAmt, fCur);
                         if (toAcc === '澳門螞蟻銀行') dailyChanges[d].tin += toMOP(tAmt, tCur);
@@ -1697,6 +1717,7 @@
             const records = getRecords();
             const base = getCreditBalances();
             const result = JSON.parse(JSON.stringify(base));
+            const creditList = getCreditCardList(); // MODIFIED: 使用動態清單
             records.forEach(item => {
                 const fCur = item.fromCurrency || item.currency;
                 const fAmt = item.fromAmount !== undefined ? item.fromAmount : item.amount;
@@ -1705,18 +1726,18 @@
 
                 if ((item.type === 'expense' || !item.type)) {
                     const cr = getActual(item.account);
-                    if (CREDIT_CARDS.includes(cr)) {
+                    if (creditList.includes(cr)) {
                         if (!result[cr]) result[cr] = { MOP: 0, HKD: 0, CNY: 0 };
                         result[cr][fCur] = parseFloat(((result[cr][fCur] || 0) + fAmt).toFixed(2));
                     }
                 } else if (item.type === 'transfer') {
                     const tb = getActual(item.toAccount),
                         fb = getActual(item.fromAccount);
-                    if (CREDIT_CARDS.includes(tb)) {
+                    if (creditList.includes(tb)) {
                         if (!result[tb]) result[tb] = { MOP: 0, HKD: 0, CNY: 0 };
                         result[tb][tCur] = parseFloat(((result[tb][tCur] || 0) - tAmt).toFixed(2));
                     }
-                    if (CREDIT_CARDS.includes(fb)) {
+                    if (creditList.includes(fb)) {
                         if (!result[fb]) result[fb] = { MOP: 0, HKD: 0, CNY: 0 };
                         result[fb][fCur] = parseFloat(((result[fb][fCur] || 0) + fAmt).toFixed(2));
                     }
@@ -1791,13 +1812,21 @@
         // ====================================================================
         function updateDropdowns() {
             const bankList = getBankList();
+            const creditList = getCreditCardList(); // MODIFIED
+
             // 銀行選項群組
             const optGroup = document.getElementById('bankOptGroup');
             if (optGroup) {
                 optGroup.innerHTML = bankList.map(b => `<option value="${b}">${b}</option>`).join('');
             }
 
-            // 轉帳帳戶下拉
+            // 信用卡選項群組 (新增)
+            const creditOptGroup = document.getElementById('creditOptGroup');
+            if (creditOptGroup) {
+                creditOptGroup.innerHTML = creditList.map(c => `<option value="${c}">${c}</option>`).join('');
+            }
+
+            // 轉帳帳戶下拉 (包含銀行與信用卡)
             ['fromAccount', 'toAccount', 'bankFlowSelect'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -1805,9 +1834,9 @@
                 let html =
                     `<option value="" disabled ${id==='bankFlowSelect'?'':'selected'}>${id==='bankFlowSelect'?'全部銀行':'選擇帳戶'}</option>`;
                 bankList.forEach(b => html += `<option value="${b}">${b}</option>`);
-                CREDIT_CARDS.forEach(c => html += `<option value="${c}">${c}</option>`);
+                creditList.forEach(c => html += `<option value="${c}">${c}</option>`);
                 el.innerHTML = html;
-                if (val && bankList.includes(val)) el.value = val;
+                if (val && (bankList.includes(val) || creditList.includes(val))) el.value = val;
                 if (id === 'bankFlowSelect' && val) el.value = val;
             });
 
@@ -1817,7 +1846,7 @@
                 const val = accFilter.value;
                 let html = `<option value="ALL">全部戶口</option><option value="MPay">MPay</option><option value="BOC Pay">BOC Pay</option>`;
                 bankList.forEach(b => html += `<option value="${b}">${b}</option>`);
-                CREDIT_CARDS.forEach(c => html += `<option value="${c}">${c}</option>`);
+                creditList.forEach(c => html += `<option value="${c}">${c}</option>`);
                 accFilter.innerHTML = html;
                 if (val) accFilter.value = val;
             }
@@ -1827,7 +1856,7 @@
             if (creditFlow) {
                 const val = creditFlow.value;
                 let html = `<option value="ALL">全部卡片</option>`;
-                CREDIT_CARDS.forEach(c => html += `<option value="${c}">${c}</option>`);
+                creditList.forEach(c => html += `<option value="${c}">${c}</option>`);
                 creditFlow.innerHTML = html;
                 if (val) creditFlow.value = val;
             }
@@ -1919,7 +1948,7 @@
 
                     let accTag = `<span class="tag">💳 ${item.account||''}</span>`;
                     if (BIND_MAP[item.account]) accTag += ` <span class="tag bank">🏛️ ${BIND_MAP[item.account]}</span>`;
-                    if (CREDIT_CARDS.includes(item.account)) accTag =
+                    if (getCreditCardList().includes(item.account)) accTag =
                     `<span class="tag credit">💳 ${item.account}</span>`;
                     if (typeClass === 'transfer') accTag =
                         `<span class="tag transfer-tag">${item.fromAccount||''} ➔ ${item.toAccount||''}</span>`;
@@ -1965,7 +1994,7 @@
                         actInc += mop; }
                     if (r.type === 'expense' || !r.type) { exp += mop;
                         actExp += mop; }
-                    if (r.type === 'transfer' && CREDIT_CARDS.includes(getActual(r.toAccount))) {
+                    if (r.type === 'transfer' && getCreditCardList().includes(getActual(r.toAccount))) {
                         const tCur = r.toCurrency || r.currency;
                         const tAmt = r.toAmount !== undefined ? r.toAmount : r.amount;
                         repay += toMOP(tAmt, tCur);
@@ -2253,10 +2282,11 @@
         }
 
         // ====================================================================
-        //  渲染：信用卡
+        //  渲染：信用卡 (MODIFIED 增加自訂卡片管理)
         // ====================================================================
         function renderCredit() {
             const calc = calcCreditBalances();
+            const creditList = getCreditCardList();
             let grandMOP = 0,
                 monthSpend = 0;
             let html = '';
@@ -2265,7 +2295,7 @@
                 cm = now.getMonth() + 1;
             const records = getRecords();
 
-            CREDIT_CARDS.forEach(card => {
+            creditList.forEach(card => {
                 const curr = calc[card] || { MOP: 0, HKD: 0, CNY: 0 };
                 let sumMOP = 0;
                 let grid = '';
@@ -2277,11 +2307,18 @@
                 });
                 grandMOP += sumMOP;
 
+                // 僅自訂卡顯示刪除按鈕
+                const isCustom = cloud.customCreditCards && cloud.customCreditCards.includes(card);
+                const delBtn = isCustom ? `<button class="btn-sm red" onclick="deleteCreditCard('${card}')">✕</button>` : '';
+
                 html += `
                     <div class="bank-card" style="border-color:#FBCFE8;">
                         <div class="header">
                             <span class="credit-name">💳 ${card}</span>
-                            <span>欠款: MOP$ ${fmt(sumMOP)}</span>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span>欠款: MOP$ ${fmt(sumMOP)}</span>
+                                ${delBtn}
+                            </div>
                         </div>
                         <div class="bank-curr-grid">${grid}</div>
                         <div class="bank-edit">
@@ -2298,7 +2335,7 @@
             records.forEach(r => {
                 if (!r.date) return;
                 const [iy, im] = r.date.split('-').map(Number);
-                if (iy === cy && im === cm && (r.type === 'expense' || !r.type) && CREDIT_CARDS.includes(getActual(r
+                if (iy === cy && im === cm && (r.type === 'expense' || !r.type) && creditList.includes(getActual(r
                         .account))) {
                     monthSpend += toMOP(r.fromAmount !== undefined ? r.fromAmount : r.amount, r.fromCurrency || r
                         .currency);
@@ -2306,12 +2343,38 @@
             });
 
             document.getElementById('creditTotal').textContent = `MOP$ ${fmt(grandMOP)}`;
-            document.getElementById('creditCardCount').textContent = `${CREDIT_CARDS.length} 張`;
+            document.getElementById('creditCardCount').textContent = `${creditList.length} 張`;
             document.getElementById('creditMonthSpend').textContent = `MOP$ ${fmt(monthSpend)}`;
             document.getElementById('creditEditorContainer').innerHTML = html;
 
             // 信用卡流水
             renderCreditFlow();
+        }
+
+        // MODIFIED: 新增自訂信用卡
+        function addCreditCard() {
+            const name = document.getElementById('newCreditCardName').value.trim();
+            if (!name) { alert('請輸入信用卡名稱'); return; }
+            const list = getCreditCardList();
+            if (list.includes(name)) { alert('該卡片已存在'); return; }
+            const custom = getCustomCreditCards();
+            custom.push(name);
+            setCustomCreditCards(custom);
+            // 初始化餘額
+            const bal = getCreditBalances();
+            if (!bal[name]) bal[name] = { MOP: 0, HKD: 0, CNY: 0 };
+            setCreditBalances(bal);
+            document.getElementById('newCreditCardName').value = '';
+            renderAll();
+        }
+
+        // MODIFIED: 刪除自訂信用卡
+        function deleteCreditCard(name) {
+            if (!confirm(`確定刪除信用卡「${name}」？\n（其餘額資料將保留，但不會再顯示）`)) return;
+            const custom = getCustomCreditCards().filter(c => c !== name);
+            setCustomCreditCards(custom);
+            // 可選擇同時刪除餘額，但保留以免誤刪，由使用者自行決定
+            renderAll();
         }
 
         function setCreditBalance(card) {
@@ -2328,9 +2391,10 @@
         function renderCreditFlow() {
             const container = document.getElementById('creditTxList');
             const selected = document.getElementById('creditFlowSelect').value;
+            const creditList = getCreditCardList();
             const records = getRecords();
             let filtered = records.filter(r => {
-                const match = selected === 'ALL' ? CREDIT_CARDS.includes(getActual(r.account)) || CREDIT_CARDS
+                const match = selected === 'ALL' ? creditList.includes(getActual(r.account)) || creditList
                     .includes(getActual(r.toAccount)) : (getActual(r.account) === selected || getActual(r.toAccount) ===
                         selected);
                 return match;
@@ -2359,7 +2423,7 @@
         }
 
         // ====================================================================
-        //  渲染：MPF
+        //  渲染：MPF (MODIFIED 月漲跌計算)
         // ====================================================================
         function renderMPF() {
             const accounts = getMPFAccounts();
@@ -2416,8 +2480,39 @@
             }
             document.getElementById('mpfComparisonTbody').innerHTML = tableHtml ||
                 '<tr><td colspan="6" class="empty-state">尚無紀錄</td></tr>';
-            document.getElementById('mpfGrowth').textContent = `HK$ ${fmt(latestGrowth)}`;
-            document.getElementById('mpfLatestMonth').textContent = latestMonth;
+
+            // ===== MODIFIED: 計算當前月份所有帳戶總月漲跌 =====
+            const currentMonthStr = `${currentYear}-${currentMonth}`;
+            // 取得所有月份的總餘額（按月份分組）
+            const monthTotals = {};
+            records.forEach(r => {
+                if (!r.month) return;
+                if (!monthTotals[r.month]) monthTotals[r.month] = 0;
+                monthTotals[r.month] += r.balance; // 直接加總該月份所有帳戶餘額（假設每帳戶每月一筆）
+            });
+            // 排序月份
+            const months = Object.keys(monthTotals).sort();
+            // 找到當前月份的總餘額，若無則找最近一個有資料的月份
+            let currentTotal = 0;
+            let previousTotal = 0;
+            let currentIdx = months.indexOf(currentMonthStr);
+            if (currentIdx !== -1) {
+                currentTotal = monthTotals[currentMonthStr];
+                if (currentIdx > 0) {
+                    previousTotal = monthTotals[months[currentIdx - 1]];
+                } else {
+                    // 若這是第一個月份，則無上月資料，漲跌為 0
+                    previousTotal = currentTotal;
+                }
+            } else {
+                // 當前月份無資料，漲跌為 0
+                currentTotal = 0;
+                previousTotal = 0;
+            }
+            const monthChange = currentTotal - previousTotal;
+            latestGrowth = monthChange; // 覆蓋原本的 latestGrowth
+            document.getElementById('mpfGrowth').textContent = `HK$ ${fmt(monthChange)}`;
+            document.getElementById('mpfLatestMonth').textContent = currentMonthStr;
         }
 
         function addMPFAccount() {
@@ -2447,6 +2542,11 @@
             let recs = getMPFRecords().filter(r => !(r.month === month && r.accountId === accId));
             recs.push({ id: genId(), month, accountId: accId, balance, contrib });
             setMPFRecords(recs);
+            // 更新帳戶當前餘額
+            const accs = getMPFAccounts();
+            const acc = accs.find(a => a.id === accId);
+            if (acc) acc.balance = balance;
+            setMPFAccounts(accs);
             document.getElementById('mpfRecBalance').value = '';
             document.getElementById('mpfRecContrib').value = '';
             renderAll();
@@ -2854,6 +2954,7 @@
                     const data = JSON.parse(ev.target.result);
                     if (data && data.records) {
                         cloud = data;
+                        if (!cloud.customCreditCards) cloud.customCreditCards = [];
                         pushToCloud();
                         alert('匯入成功！');
                         renderAll();
